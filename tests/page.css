@@ -1,0 +1,113 @@
+body,
+html {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+}
+
+body,
+button,
+input,
+select,
+textarea,
+pre {
+    font-family: "Segoe UI", "Segoe WP", Arial, Sans-Serif
+}
+
+body {
+    background: #f1f1f1;
+}
+
+dl,
+ol,
+ul {
+    margin: 0;
+    list-style: none;
+    padding: 0;
+}
+
+a {
+    text-decoration: none;
+    color: #007bff;
+    background-color: transparent;
+}
+
+a.white {
+    color: #fff;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+    margin: 0;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+td {
+    padding: 5px;
+}
+
+input[type=text],
+textarea {
+    padding: 5px;
+}
+
+textarea {
+    resize: none;
+}
+
+select {
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.left {
+    float: left;
+}
+
+.right {
+    float: right;
+}
+
+.clear {
+    clear: both;
+    float: none;
+    height: 0;
+}
+
+.hide {
+    display: none;
+}
+
+#console {
+    margin: 10px 20px;
+    height: 300px;
+    overflow-y: auto;
+    background: #444;
+    color: #fff;
+}
+
+#console>div {
+    padding: 3px 5px;
+}
+
+#console>div.success {
+    color: #21FF21;
+    white-space: pre;
+}
+
+#console>div.error {
+    color: rgb(255, 0, 0);
+}

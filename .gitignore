@@ -1,0 +1,4 @@
+node_modules/
+selenium-debug.log
+tests/reports/
+txt-reader-worker.js

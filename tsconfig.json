@@ -1,0 +1,15 @@
+{
+    "files": [
+        "txt-reader.ts",
+        "txt-reader-worker.ts"
+    ],
+    "compilerOptions": {
+        "lib": [
+            "es2015.promise",
+            "scripthost",
+            "es5",
+            "dom",
+            "webworker"
+        ]
+    }
+}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>IIS log reader</title>
+    <link href="page.css" rel="stylesheet" />
+</head>
+
+<body>
+    <input type="file" id="file-input" />
+    <br>
+    <button id="load-file">Load File</button>
+    <button id="get-line-count">Get Line Count</button>
+    <div>
+        Chunk Size:
+        <input type="text" id="chunk-size" />
+        <button id="set-chunk-size">Set Chunk Size</button>
+    </div>
+    <div>
+        Start:
+        <input type="text" id="start-line" /> Count:
+        <input type="text" id="count" />
+        <button id="get-lines">Get Lines</button>
+        <button id="iterate-lines">Iterate Lines</button>
+    </div>
+    <div id="running" class="hide">Running</div>
+    <div id="console"></div>
+    <button id="clear-console">Clear Console</button>
+    <script src="jquery-3.2.1.min.js"></script>
+    <script src="dist/txt-reader.js"></script>
+    <script src="page.js"></script>
+</body>
+
+</html>

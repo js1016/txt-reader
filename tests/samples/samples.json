@@ -1,0 +1,59 @@
+[
+    {
+        "file": "mixed-eol-6-lines.txt",
+        "lineCount": 6,
+        "chunkSizeTest": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+        ],
+        "getLines": [
+            {
+                "line": 1,
+                "content": "aa"
+            },
+            {
+                "line": 2,
+                "content": "bb"
+            },
+            {
+                "line": 3,
+                "content": "cc"
+            },
+            {
+                "line": 4,
+                "content": "dd"
+            },
+            {
+                "line": 5,
+                "content": "ee"
+            },
+            {
+                "line": 6,
+                "content": "ff"
+            }
+        ]
+    },
+    {
+        "file": "cbs-50000-lines.log",
+        "lineCount": 50000,
+        "getLines": [
+            {
+                "line": 1,
+                "content": "2017-09-18 10:21:31, Info                  CBS    Starting TrustedInstaller initialization."
+            },
+            {
+                "line": 30527,
+                "content": "2017-11-14 19:05:36, Info                  CBS    Applicability(ComponentAnalyzerEvaluateSelfUpdate): Component: amd64_microsoft-windows-lsa.resources_31bf3856ad364e35_6.1.7601.23136_sv-se_ca5fa2630e953343, elevate: 2, applicable(true/false): 0"
+            },
+            {
+                "line": 50000,
+                "content": "2017-11-14 19:05:37, Info                  CBS    Appl: Selfupdate, Component: amd64_microsoft-windows-b..os-loader.resources_31bf3856ad364e35_0.0.0.0_hu-hu_e0849e61bbe45b02 (6.1.7601.23136), elevation:2, lower version revision holder: 0.0.0.0"
+            }
+        ]
+    }
+]
