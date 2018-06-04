@@ -1,4 +1,4 @@
-worker-inlinify-webpack-plugin
+txt-reader
 ==========
 [![NPM version](https://img.shields.io/npm/v/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![NPM downloads](http://img.shields.io/npm/dm/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
