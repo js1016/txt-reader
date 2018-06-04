@@ -1,3 +1,6 @@
+worker-inlinify-webpack-plugin
+==========
+[![NPM version](https://img.shields.io/npm/v/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![NPM downloads](http://img.shields.io/npm/dm/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 TxtReader is a JavaScript library to read text file in browsers based on [FileReader API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader). It can read very large, huge, giant files (GB+). It offloads the file reading operations to [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so that it won't block browser UI rendering even though it is reading a very large file. And you can easily track the reading progress by using promise-like methods.
 # Contents
 * [Installation](#user-content-installation)
@@ -51,7 +54,7 @@ var reader = new TxtReader();
 ```
 
 ## loadFile(file[ ,iteratorConfig])
-After creating instance, we can load any text file into `TxtReader` using `loadFile()`, this method asynchronously goes through the text file and returns the line number. For large text file, it may take dozens of seconds to complete, we can use `.progress()`, `.then()` and `.catch()` to track the method running progress and results.
+After creating instance, we can load any text file into `TxtReader` using `loadFile()`, this method asynchronously goes through the text file and returns the line number. For large text file, it may take dozens of seconds to complete, we can use `.progress()`, `.then()` and `.catch()` to track the method running progress and results. This method accepts a customized iterator so you can do some initialization jobs towards each line in the text file.
 
 #### Syntax
 ```javascript
