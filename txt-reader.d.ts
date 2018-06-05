@@ -22,7 +22,7 @@ declare namespace TxtReaderLib {
 
     interface TxtReader_Instance {
         lineCount: number;
-        loadFile(file: File, config: IIteratorConfig): TxtReaderTask;
+        loadFile(file: File, config?: IIteratorConfig): TxtReaderTask;
         getLines(start: number, count: number): TxtReaderTask;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask;
     }
