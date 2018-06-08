@@ -2,7 +2,7 @@ txt-reader
 ==========
 [![NPM version](https://img.shields.io/npm/v/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![NPM downloads](http://img.shields.io/npm/dm/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
-TxtReader is a JavaScript library to read text file in browsers based on [FileReader API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader). It can read very large, huge, giant files (GB+). It offloads the file reading operations to [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so that it won't block browser UI rendering even though it is reading a very large file. And you can easily track the reading progress by using promise-like methods.
+TxtReader is a JavaScript library to read text file in browsers based on [FileReader API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader). It can read very large, huge, giant files (GB+). It offloads the file reading operations to [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so that it won't block browser UI rendering even though it is reading a very large file. And you can easily track the reading progress by using promise-like methods. [Click here to check the demo](https://js1016.github.io/txt-reader/)
 # Contents
 * [Installation](#user-content-installation)
     * [npm](#user-content-npm)
