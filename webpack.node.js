@@ -10,5 +10,5 @@ module.exports = merge(common, {
         path: path.resolve(__dirname),
         filename: '[name].js'
     },
-    mode: "development"
+    mode: "production"
 });
