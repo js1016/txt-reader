@@ -17,10 +17,10 @@ declare namespace TxtReaderLib {
     }
 
     interface TxtReader_Static {
-        new(): TxtReader_Instance;
+        new(): TxtReader;
     }
 
-    interface TxtReader_Instance {
+    interface TxtReader {
         lineCount: number;
         loadFile(file: File, config?: IIteratorConfig): TxtReaderTask;
         getLines(start: number, count: number): TxtReaderTask;
