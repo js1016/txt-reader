@@ -1,19 +1,13 @@
 let path = require('path');
-let childProcess = require('child_process');
-
-let process = childProcess.fork('./tests/server.js');
 
 module.exports = {
     'TxtParser testing': function (browser) {
         browser
-            .url('http://localhost:3000/')
+            .url(path.resolve(__dirname + '/dist/index.html'))
             .waitForElementVisible('#file-input', 1000);
         let samples = require('./samples/samples.json');
         samples.forEach(sample => {
             testFile(sample);
-        });
-        browser.end(function () {
-            //done();
         });
         function testFile(sample) {
             let fileName = path.resolve(__dirname + '/samples/' + sample.file);
@@ -94,6 +88,5 @@ module.exports = {
     },
     after: function (browser) {
         browser.end();
-        process.kill();
     }
 };

@@ -1,4 +1,5 @@
 node_modules/
 selenium-debug.log
 tests/reports/
+tests/dist/
 txt-reader-worker.js

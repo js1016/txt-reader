@@ -1,3 +1,5 @@
+require('./page.css');
+const TxtReader = require('./../txt-reader.js').TxtReader;
 'use strict';
 
 var txtReader = new TxtReader();
