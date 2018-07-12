@@ -5,15 +5,36 @@ declare namespace TxtReaderLib {
         result: any;
     }
 
+    type LoadFileResult = {
+        lineCount: number,
+        scope?: object
+    }
+
+    interface ILoadFileTaskResponse extends ITaskResponse {
+        result: LoadFileResult;
+    }
+
+    interface IGetLinesTaskResponse extends ITaskResponse {
+        result: string[];
+    }
+
+    interface ISetChunkSizeResponse extends ITaskResponse {
+        result: number;
+    }
+
+    interface IIterateLinesTaskResponse extends ITaskResponse {
+        result: object;
+    }
+
     interface IIteratorConfig {
         eachLine: (raw: Uint8Array, progress: number, lineNumber: number) => void;
         scope?: object;
     }
 
-    interface TxtReaderTask {
-        then(onComplete: (response: ITaskResponse) => void): TxtReaderTask;
-        progress(onProgress: (progress: number) => void): TxtReaderTask;
-        catch(onFail: (reason: string) => void): TxtReaderTask;
+    interface TxtReaderTask<T> {
+        then(onComplete: (response: T) => void): TxtReaderTask<T>;
+        progress(onProgress: (progress: number) => void): TxtReaderTask<T>;
+        catch(onFail: (reason: string) => void): TxtReaderTask<T>;
     }
 
     interface TxtReader_Static {
@@ -22,9 +43,9 @@ declare namespace TxtReaderLib {
 
     interface TxtReader {
         lineCount: number;
-        loadFile(file: File, config?: IIteratorConfig): TxtReaderTask;
-        getLines(start: number, count: number): TxtReaderTask;
-        iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask;
+        loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse>;
+        getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse>;
+        iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;
     }
 
     var TxtReader: TxtReader_Static

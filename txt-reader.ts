@@ -2,11 +2,33 @@ import { TextDecoder } from './text-encoding'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
+import { TextDecoder_Instance } from 'text-encoding-shim';
 
 interface ITaskResponse {
     timeTaken: number;
     message: string;
     result: any;
+}
+
+interface ILoadFileTaskResponse extends ITaskResponse {
+    result: LoadFileResult;
+}
+
+interface IGetLinesTaskResponse extends ITaskResponse {
+    result: string[];
+}
+
+interface ISetChunkSizeResponse extends ITaskResponse {
+    result: number;
+}
+
+interface IIterateLinesTaskResponse extends ITaskResponse {
+    result: object;
+}
+
+type LoadFileResult = {
+    lineCount: number,
+    scope?: object
 }
 
 interface IResponseMessageEvent extends MessageEvent {
@@ -43,7 +65,7 @@ enum TxtReaderTaskState {
     Completed
 }
 
-class TxtReaderTask {
+class TxtReaderTask<T> {
     // All the communications between the Window context and the worker context are based on TxtReaderTask and following conventions
     // 1. Only one task can be running at a time
     // 2. Task is created through TxtReader.newTask method, DO NOT directly create instance of TxtReaderTask
@@ -131,21 +153,21 @@ class TxtReaderTask {
         }
     }
 
-    public then(onFulFilled: (response: ITaskResponse) => void): TxtReaderTask {
+    public then(onFulFilled: (response: T) => void): TxtReaderTask<T> {
         this.promise.then((data) => {
             onFulFilled.call(this.parser, data);
         }).catch((reason) => { });
         return this;
     }
 
-    public catch(onFailed: (reason: string) => void): TxtReaderTask {
+    public catch(onFailed: (reason: string) => void): TxtReaderTask<T> {
         this.promise.catch((reason) => {
             onFailed.call(this.parser, reason);
         });
         return this;
     }
 
-    public progress(onProgress: (progress: number) => void): TxtReaderTask {
+    public progress(onProgress: (progress: number) => void): TxtReaderTask<T> {
         this.onProgress = onProgress;
         return this;
     }
@@ -153,11 +175,11 @@ class TxtReaderTask {
 
 export class TxtReader {
     private worker: Worker;
-    private taskList: TxtReaderTask[];
-    private runningTask: TxtReaderTask;
-    private queuedTaskList: TxtReaderTask[];
+    private taskList: TxtReaderTask<any>[];
+    private runningTask: TxtReaderTask<any>;
+    private queuedTaskList: TxtReaderTask<any>[];
     private verboseLogging: boolean;
-    private utf8decoder;
+    private utf8decoder: TextDecoder_Instance;
     public lineCount: number;
     private file: File;
 
@@ -196,7 +218,7 @@ export class TxtReader {
         }, false);
     }
 
-    public loadFile(file: File, config?: IIteratorConfig): TxtReaderTask {
+    public loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse> {
         this.file = file;
         Object.defineProperty(this, 'lineCount', {
             value: 0,
@@ -208,7 +230,7 @@ export class TxtReader {
         if (config) {
             data.config = this.getItertorConfigMessage(config);
         }
-        return this.newTask('loadFile', data).then((response) => {
+        return this.newTask<ILoadFileTaskResponse>('loadFile', data).then((response) => {
             Object.defineProperty(this, 'lineCount', {
                 value: response.result.lineCount,
                 writable: false
@@ -216,7 +238,7 @@ export class TxtReader {
         });
     }
 
-    public setChunkSize(chunkSize: number): TxtReaderTask {
+    public setChunkSize(chunkSize: number): TxtReaderTask<ISetChunkSizeResponse> {
         return this.newTask('setChunkSize', chunkSize);
     }
 
@@ -225,19 +247,19 @@ export class TxtReader {
         return this.newTask('enableVerbose');
     }
 
-    public getLines(start: number, count: number): TxtReaderTask {
-        return this.newTask('getLines', {
+    public getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse> {
+        return this.newTask<IGetLinesTaskResponse>('getLines', {
             start: start,
             count: count
         }).then((response) => {
             for (let i = 0; i < response.result.length; i++) {
-                response.result[i] = this.utf8decoder.decode(response.result[i]);
+                response.result[i] = this.utf8decoder.decode(response.result[i] as any as ArrayBufferView);
             }
         });
     }
 
-    public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask {
-        return this.newTask('iterateLines', {
+    public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
+        return this.newTask<IIterateLinesTaskResponse>('iterateLines', {
             config: this.getItertorConfigMessage(config),
             start: start || null,
             count: count || null
@@ -251,9 +273,9 @@ export class TxtReader {
         };
     }
 
-    private newTask(action: string, data?: any): TxtReaderTask {
+    private newTask<T>(action: string, data?: any): TxtReaderTask<T> {
         let reqMsg: RequestMessage = new RequestMessage(action, data);
-        let task: TxtReaderTask = new TxtReaderTask(this.newTaskId(), reqMsg, this);
+        let task: TxtReaderTask<T> = new TxtReaderTask<T>(this.newTaskId(), reqMsg, this);
         this.taskList.push(task);
         if (!this.runningTask) {
             this.runTask(task);
@@ -276,7 +298,7 @@ export class TxtReader {
         }
     }
 
-    private runTask(task: TxtReaderTask) {
+    private runTask(task: TxtReaderTask<any>) {
         this.runningTask = task;
         this.worker.postMessage(task.requestMessage);
         task.run();

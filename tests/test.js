@@ -1,7 +1,7 @@
 let path = require('path');
 
 module.exports = {
-    'TxtParser testing': function (browser) {
+    'TxtReader testing': function (browser) {
         browser
             .url(path.resolve(__dirname + '/dist/index.html'))
             .waitForElementVisible('#file-input', 1000);
