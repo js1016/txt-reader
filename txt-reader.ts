@@ -23,12 +23,12 @@ interface ISetChunkSizeResponse extends ITaskResponse {
 }
 
 interface IIterateLinesTaskResponse extends ITaskResponse {
-    result: object;
+    result: any;
 }
 
 type LoadFileResult = {
     lineCount: number,
-    scope?: object
+    scope?: any
 }
 
 interface IResponseMessageEvent extends MessageEvent {

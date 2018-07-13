@@ -23,12 +23,12 @@ declare namespace TxtReaderLib {
     }
 
     interface IIterateLinesTaskResponse extends ITaskResponse {
-        result: object;
+        result: any;
     }
 
     interface IIteratorConfig {
         eachLine: (raw: Uint8Array, progress: number, lineNumber: number) => void;
-        scope?: object;
+        scope?: any;
     }
 
     interface TxtReaderTask<T> {
