@@ -7,7 +7,7 @@ declare namespace TxtReaderLib {
 
     type LoadFileResult = {
         lineCount: number,
-        scope?: object
+        scope?: any
     }
 
     interface ILoadFileTaskResponse extends ITaskResponse {
@@ -28,7 +28,7 @@ declare namespace TxtReaderLib {
 
     interface IIteratorConfig {
         eachLine: (raw: Uint8Array, progress: number, lineNumber: number) => void;
-        scope?: any;
+        scope?: object;
     }
 
     interface TxtReaderTask<T> {
