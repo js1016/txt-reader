@@ -313,7 +313,6 @@ class TxtReaderWorker {
         this.fr = new FileReader();
         this.fr.onload = () => {
             let view: Uint8Array = new Uint8Array(this.fr.result);
-            let viewTotalLength: number = this.fr.result.byteLength;
             let iterator: Iterator = this.iterator;
             while (view.length > 0) {
                 // first CR (0x0D, \r) position in the view

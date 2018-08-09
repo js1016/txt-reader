@@ -124,3 +124,5 @@ $('#iterate-lines').click(function () {
         hideRunning();
     });
 });
+
+window.txtReader = txtReader;

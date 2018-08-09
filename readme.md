@@ -16,6 +16,7 @@ TxtReader is a JavaScript library to read text file in browsers based on [FileRe
     * [iterateLines(iteratorConfig[, start, count])](#user-content-iteratelinesiteratorconfig-start-count)
 * [Properties](#user-content-properties)
     * [lineCount](#user-content-linecount)
+    * [utf8decoder](#user-content-utf8decoder)
 * [Sample](#user-content-sample)
 * [Browser Compatibility](#user-content-browser-compatibility)
 
@@ -197,6 +198,11 @@ Type: Number
 
 Returns the line number of the loaded text file. If no text file has been loaded, it returns 0. This is a readonly property.
 
+## utf8decoder
+Type: An object of [TextDecoder](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/TextDecoder) in UTF-8 encoding.
+
+If the browser natively supports [TextDecoder](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/TextDecoder), then it equals to `new TextDeocder('utf-8')`, otherwise consider it as a polyfill. This is a helper method in case you need to decode ArrayBuffer to text.
+
 # Sample
 
 ```javascript
@@ -246,6 +252,8 @@ function exectueAfterLoadFileComplete() {
             console.log('Iterating lines failed with error: ' + reason);
         });
 }
+
+reader.utf8decoder.decode(new Uint8Array(['a'.charCodeAt(0)])) === 'a' // true
 ```
 
 # Browser Compatibility

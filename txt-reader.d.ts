@@ -1,3 +1,5 @@
+import { TextDecoder_Instance } from 'text-encoding-shim';
+
 declare namespace TxtReaderLib {
     interface ITaskResponse {
         timeTaken: number;
@@ -43,6 +45,7 @@ declare namespace TxtReaderLib {
 
     interface TxtReader {
         lineCount: number;
+        utf8decoder: TextDecoder_Instance;
         loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse>;
         getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse>;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;

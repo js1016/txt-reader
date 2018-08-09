@@ -179,7 +179,7 @@ export class TxtReader {
     private runningTask: TxtReaderTask<any>;
     private queuedTaskList: TxtReaderTask<any>[];
     private verboseLogging: boolean;
-    private utf8decoder: TextDecoder_Instance;
+    public utf8decoder: TextDecoder_Instance;
     public lineCount: number;
     private file: File;
 
