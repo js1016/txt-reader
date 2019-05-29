@@ -12,7 +12,9 @@ module.exports = merge(common, {
         filename: '[name].js'
     },
     plugins: [
-        new CleanWebpackPlugin(['dist'])
+        new CleanWebpackPlugin({
+            cleanOnceBeforeBuildPatterns: ['dist']
+        })
     ],
     mode: 'production'
 });

@@ -28,7 +28,9 @@ module.exports = {
         ]
     },
     plugins: [
-        new CleanWebpackPlugin([__dirname + '/tests/dist']),
+        new CleanWebpackPlugin({
+            cleanOnceBeforeBuildPatterns: [__dirname + '/tests/dist']
+        }),
         new HtmlWebpackPlugin({
             title: 'Custom template',
             template: './tests/index.html'

@@ -1,4 +1,4 @@
-import { TextDecoder } from './text-encoding'
+import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
 
@@ -312,7 +312,7 @@ class TxtReaderWorker {
         this.quickSearchMap = [];
         this.fr = new FileReader();
         this.fr.onload = () => {
-            let view: Uint8Array = new Uint8Array(this.fr.result);
+            let view: Uint8Array = new Uint8Array(<ArrayBuffer>this.fr.result);
             let iterator: Iterator = this.iterator;
             while (view.length > 0) {
                 // first CR (0x0D, \r) position in the view
@@ -376,7 +376,7 @@ class TxtReaderWorker {
                             break;
                         }
                         iterator.lineView = new Uint8Array(0);
-                        view = new Uint8Array(this.fr.result, 1 + view.byteOffset);
+                        view = new Uint8Array(<ArrayBuffer>this.fr.result, 1 + view.byteOffset);
                         iterator.lastViewEndsWithCR = false;
                         continue;
                     } else {
@@ -411,7 +411,7 @@ class TxtReaderWorker {
                     // clear lineView
                     iterator.lineView = new Uint8Array(0);
                     // remove the processed view
-                    view = new Uint8Array(this.fr.result, view.byteOffset + lineBreakIndex + iterator.lineBreakLength);
+                    view = new Uint8Array(<ArrayBuffer>this.fr.result, view.byteOffset + lineBreakIndex + iterator.lineBreakLength);
                 } else {
                     // do merge all, which means no CR or LF found
                     if (iterator.lastViewEndsWithCR) {

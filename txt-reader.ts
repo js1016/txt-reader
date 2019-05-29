@@ -1,4 +1,4 @@
-import { TextDecoder } from './text-encoding'
+import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
