@@ -4,6 +4,7 @@
         "txt-reader-worker.ts"
     ],
     "compilerOptions": {
+        "strict": true,
         "lib": [
             "es2015.promise",
             "scripthost",

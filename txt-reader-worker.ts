@@ -17,9 +17,9 @@ const utf8decoder = new TextDecoder('utf-8');
 
 let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 50;
 
-let currentTaskId: number = null;
+let currentTaskId: number | null = null;
 
-let txtReaderWorker: TxtReaderWorker = null;
+let txtReaderWorker: TxtReaderWorker | null = null;
 
 let verboseLogging: boolean = false;
 
@@ -32,7 +32,7 @@ const respondMessage = (responseMessage: ResponseMessage): void => {
     postMessage.apply(null, [responseMessage]);
 };
 
-const respondTransferrableMessage = (responseMessage: ResponseMessage, arr): void => {
+const respondTransferrableMessage = (responseMessage: ResponseMessage, arr: Transferable[]): void => {
     if (responseMessage.done) {
         currentTaskId = null;
     }
@@ -96,12 +96,12 @@ self.addEventListener('message', (event: MessageEvent) => {
             break;
         case 'getLines':
             if (validateWorker()) {
-                txtReaderWorker.getLines(req.data.start, req.data.count);
+                (<TxtReaderWorker>txtReaderWorker).getLines(req.data.start, req.data.count);
             }
             break;
         case 'iterateLines':
             if (validateWorker()) {
-                txtReaderWorker.iterateLines(req.data)
+                (<TxtReaderWorker>txtReaderWorker).iterateLines(req.data)
             }
             break;
     }
@@ -118,7 +118,7 @@ class ResponseMessage implements IResponseMessage {
     constructor(x: string, y: any);
     constructor(x: boolean, y: string, z: any);
     constructor(x: any, y?: any, z?: any) {
-        this.taskId = currentTaskId;
+        this.taskId = <number>currentTaskId;
         if (arguments.length === 1) {
             this.success = true;
             this.message = '';
@@ -153,16 +153,16 @@ class Iterator {
 
     // onEachLine callback function for internal methods
     // internal methods like: loadFile, getLines have their own onEachLine callback
-    public onEachLineInternal: Function;
+    public onEachLineInternal: Function | null;
 
     // onSeekComplete callback function
-    public onSeekComplete: Function;
+    public onSeekComplete: Function | null;
 
     // external onEachLine callback function
-    private onEachLine: Function;
+    private onEachLine: Function | null;
 
     // external onEachLine scope
-    public eachLineScope: Object;
+    public eachLineScope: any;
 
     // seek offset
     public offset: number;
@@ -190,11 +190,11 @@ class Iterator {
     public lineBreakLength: number;
 
     // last progress
-    private lastProgress: number;
+    private lastProgress: number | null;
 
     public map: ILinePosition[];
 
-    private lastMappedProgress: number;
+    private lastMappedProgress: number | null;
 
     constructor() {
         this.lineView = new Uint8Array(0);
@@ -205,7 +205,7 @@ class Iterator {
         this.onSeekComplete = null;
         this.offset = 0;
         this.createMap = false;
-        this.endOffset = null;
+        this.endOffset = 0;
         this.linesToIterate = 0;
         this.linesProcessed = 0;
         this.currentLineNumber = 1;
@@ -274,7 +274,7 @@ class Iterator {
         this.currentLineNumber++;
     }
 
-    public shouldReportProgress(currentProgress): boolean {
+    public shouldReportProgress(currentProgress: number): boolean {
         if (this.lastProgress === null) {
             return true;
         } else if (currentProgress - this.lastProgress > 5) {
@@ -294,12 +294,12 @@ class Iterator {
 }
 
 class TxtReaderWorker {
-    public CHUNK_SIZE: number;
-    private file: File;
-    private fr: FileReader;
-    private quickSearchMap: ILinePosition[];
-    private iterator: Iterator;
-    private lineCount: number;
+    public CHUNK_SIZE!: number;
+    private file!: File;
+    private fr!: FileReader;
+    private quickSearchMap!: ILinePosition[];
+    private iterator!: Iterator;
+    private lineCount!: number;
 
     constructor(file: File, onNewLineConfig?: IIteratorConfigMessage) {
         if (Object.prototype.toString.call(file).toLowerCase() !== '[object file]') {
@@ -320,7 +320,7 @@ class TxtReaderWorker {
                 // first LF (0x0A, \n) position in the view
                 let lfIndex: number = view.indexOf(10);
                 // for CRLF linebreakLength would be 2, otherwise the value would be 1.
-                let lineBreakIndex: number;
+                let lineBreakIndex!: number;
                 // If merge all view to lineView
                 let mergeAll: boolean = false;
                 // If current view ends with CR

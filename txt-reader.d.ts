@@ -27,9 +27,12 @@ declare namespace TxtReaderLib {
     interface IIterateLinesTaskResponse extends ITaskResponse {
         result: any;
     }
+    interface IIteratorEachLineThis {
+        decode(value: Uint8Array): string;
+    }
 
     interface IIteratorConfig {
-        eachLine: (raw: Uint8Array, progress: number, lineNumber: number) => void;
+        eachLine: (this: IIteratorEachLineThis, raw: Uint8Array, progress: number, lineNumber: number) => void;
         scope?: object;
     }
 

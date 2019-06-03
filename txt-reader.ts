@@ -36,8 +36,12 @@ interface IResponseMessageEvent extends MessageEvent {
 }
 
 interface IIteratorConfig {
-    eachLine: (raw: Uint8Array, progress: number, lineNumber: number) => void;
+    eachLine: (this: IIteratorEachLineThis, raw: Uint8Array, progress: number, lineNumber: number) => void;
     scope?: object;
+}
+
+interface IIteratorEachLineThis {
+    decode(value: Uint8Array): string;
 }
 
 class RequestMessage implements IRequestMessage {
@@ -50,7 +54,7 @@ class RequestMessage implements IRequestMessage {
     public data: any;
 
     // unique task id, set by TxtReader.newTask method
-    public taskId: number;
+    public taskId!: number;
 
     constructor(action: string, data?: any) {
         this.action = action;
@@ -86,10 +90,10 @@ class TxtReaderTask<T> {
     private parser: TxtReader;
 
     // property to save the onProgress callback function
-    private onProgress: Function;
+    private onProgress: Function | null;
 
     // define the promise object used by the task
-    private promise: Promise<any>;
+    private promise: Promise<any> | null;
 
     // promise resolve
     private resolve: any;
@@ -154,16 +158,20 @@ class TxtReaderTask<T> {
     }
 
     public then(onFulFilled: (response: T) => void): TxtReaderTask<T> {
-        this.promise.then((data) => {
-            onFulFilled.call(this.parser, data);
-        }).catch((reason) => { });
+        if (this.promise) {
+            this.promise.then((data) => {
+                onFulFilled.call(this.parser, data);
+            }).catch((reason) => { });
+        }
         return this;
     }
 
     public catch(onFailed: (reason: string) => void): TxtReaderTask<T> {
-        this.promise.catch((reason) => {
-            onFailed.call(this.parser, reason);
-        });
+        if (this.promise) {
+            this.promise.catch((reason) => {
+                onFailed.call(this.parser, reason);
+            });
+        }
         return this;
     }
 
@@ -176,12 +184,12 @@ class TxtReaderTask<T> {
 export class TxtReader {
     private worker: Worker;
     private taskList: TxtReaderTask<any>[];
-    private runningTask: TxtReaderTask<any>;
+    private runningTask: TxtReaderTask<any> | null;
     private queuedTaskList: TxtReaderTask<any>[];
     private verboseLogging: boolean;
     public utf8decoder: TextDecoder_Instance;
     public lineCount: number;
-    private file: File;
+    private file: File | null;
 
     constructor() {
         this.taskList = [];
@@ -199,6 +207,9 @@ export class TxtReader {
         this.worker.addEventListener('message', (event: IResponseMessageEvent) => {
             if (this.verboseLogging) {
                 console.log('Main thread received a message from worker thread: \r\n', event.data);
+            }
+            if (this.runningTask === null) {
+                return;
             }
             let response = event.data;
             if (response.taskId !== this.runningTask.id) {
@@ -287,14 +298,16 @@ export class TxtReader {
     }
 
     private completeTask(response: IResponseMessage) {
-        this.runningTask.complete(response);
-        this.runningTask = null;
-        this.runNextTask();
+        if (this.runningTask) {
+            this.runningTask.complete(response);
+            this.runningTask = null;
+            this.runNextTask();
+        }
     }
 
     private runNextTask() {
         if (this.queuedTaskList.length) {
-            this.runTask(this.queuedTaskList.shift());
+            this.runTask(this.queuedTaskList.shift()!);
         }
     }
 
