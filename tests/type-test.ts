@@ -3,7 +3,7 @@ var a = new TxtReader();
 let file!: File;
 a.loadFile(file, {
     eachLine: function (raw) {
-        this.decode(raw)
+        this.decode(raw);
     },
     scope: {
     }

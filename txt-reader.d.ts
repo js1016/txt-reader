@@ -29,6 +29,7 @@ declare namespace TxtReaderLib {
     }
     interface IIteratorEachLineThis {
         decode(value: Uint8Array): string;
+        [key: string]: any;
     }
 
     interface IIteratorConfig {
