@@ -1,6 +1,16 @@
 const TxtReader = require('./../txt-reader.js').TxtReader;
 var reader = new TxtReader();
 var file;
+reader.sniffLines(file, 5)
+    .progress(function (progress) {
+        console.log('Sniffing lines progress: ' + progress + '%');
+    })
+    .then(function (response) {
+        console.log('The first five lines are: ', response.result);
+    })
+    .catch(function (reason) {
+        console.log('sniffLines failed with error: ' + reason);
+    });
 reader.loadFile(file)
     .progress(progress => {
         alert(progress);

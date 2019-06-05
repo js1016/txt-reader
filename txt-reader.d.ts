@@ -20,6 +20,10 @@ declare namespace TxtReaderLib {
         result: string[];
     }
 
+    interface ISniffLinesTaskResponse extends ITaskResponse {
+        result: string[];
+    }
+
     interface ISetChunkSizeResponse extends ITaskResponse {
         result: number;
     }
@@ -53,6 +57,7 @@ declare namespace TxtReaderLib {
         loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse>;
         getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse>;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;
+        sniffLines(file: File, lineNumber: number): TxtReaderTask<ISniffLinesTaskResponse>;
     }
 
     var TxtReader: TxtReader_Static

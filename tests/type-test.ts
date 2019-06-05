@@ -1,6 +1,13 @@
 import { TxtReader } from '../txt-reader'
 var a = new TxtReader();
 let file!: File;
+a.sniffLines(file, 200)
+    .progress(progress => {
+        console.log(progress);
+    })
+    .then(resposne => {
+        resposne.result
+    })
 a.loadFile(file, {
     eachLine: function (raw) {
         this.decode(raw);

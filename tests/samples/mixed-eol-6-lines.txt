@@ -1,4 +1,4 @@
-aabb
-cc
-ddee
-ff
+abcd
+ef
+ghij
+kl

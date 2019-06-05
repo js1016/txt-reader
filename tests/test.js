@@ -14,6 +14,14 @@ module.exports = {
             let expectLineCount = sample.lineCount;
             browser
                 .setValue('#file-input', fileName);
+            testSniffLines(sample);
+            if (sample.chunkSizeTest && sample.chunkSizeTest.length > 0) {
+                sample.chunkSizeTest.forEach(chunkSize => {
+                    setChunkSize(chunkSize);
+                    testSniffLines(sample);
+                });
+                setChunkSize(1024 * 1024 * 50);
+            }
             testLoad();
             testLineCount(expectLineCount);
             if (sample.getLines) {
@@ -84,6 +92,33 @@ module.exports = {
                 browser.expect.element('#console>.success').text.to.equal('First line: ' + first);
                 browser.expect.element('#console>.success + .success').text.to.equal('Last line: ' + last);
             }
+        }
+        function testSniffLines(sample) {
+            let getLines = sample.getLines;
+            let lineCount = sample.lineCount;
+            for (let i = 0; i < getLines.length; i++) {
+                let lineNumber = getLines[i].line;
+                let content = getLines[i].content;
+                browser
+                    .click('#clear-console')
+                    .waitForElementNotPresent('#console>.success', 1000)
+                    .clearValue('#sniff-line-number')
+                    .setValue('#sniff-line-number', lineNumber)
+                    .click('#sniff-lines')
+                    .waitForElementNotVisible('#running', 60000);
+                browser.expect.element('#console>.error').to.not.be.present;
+                browser.expect.element('#console>.success + .success').text.to.equal('Last line: ' + content);
+                browser.expect.element('#console>.success + .success + .success').text.to.contains(`Successfully sniffed ${lineNumber > lineCount ? lineCount : lineNumber} lines`);
+            }
+            browser
+                .click('#clear-console')
+                .waitForElementNotPresent('#console>.success', 1000)
+                .clearValue('#sniff-line-number')
+                .setValue('#sniff-line-number', lineCount + 100)
+                .click('#sniff-lines')
+                .waitForElementNotVisible('#running', 60000);
+            browser.expect.element('#console>.error').to.not.be.present;
+            browser.expect.element('#console>.success + .success + .success').text.to.contains(`Successfully sniffed ${lineCount} lines`);
         }
     },
     after: function (browser) {

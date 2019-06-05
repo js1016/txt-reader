@@ -1,6 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
+import { TxtReader } from './txt-reader';
 
 interface ILinePosition {
     line: number;
@@ -13,6 +14,10 @@ interface IIterateLinesConfig {
     count: number;
 }
 
+interface ISniffConfig {
+    lineNumber: number;
+}
+
 const utf8decoder = new TextDecoder('utf-8');
 
 let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 50;
@@ -20,6 +25,7 @@ let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 50;
 let currentTaskId: number | null = null;
 
 let txtReaderWorker: TxtReaderWorker | null = null;
+let sniffWorker: TxtReaderWorker | null = null;
 
 let verboseLogging: boolean = false;
 
@@ -103,6 +109,11 @@ self.addEventListener('message', (event: MessageEvent) => {
             if (validateWorker()) {
                 (<TxtReaderWorker>txtReaderWorker).iterateLines(req.data)
             }
+            break;
+        case 'sniffLines':
+            sniffWorker = new TxtReaderWorker(req.data.file, undefined, {
+                lineNumber: req.data.lineNumber
+            });
             break;
     }
 });
@@ -300,8 +311,9 @@ class TxtReaderWorker {
     private quickSearchMap!: ILinePosition[];
     private iterator!: Iterator;
     private lineCount!: number;
+    private sniffLines!: string[];
 
-    constructor(file: File, onNewLineConfig?: IIteratorConfigMessage) {
+    constructor(file: File, onNewLineConfig?: IIteratorConfigMessage, sniffConfig?: ISniffConfig) {
         if (Object.prototype.toString.call(file).toLowerCase() !== '[object file]') {
             respondMessage(new ResponseMessage(false, 'Invalid file object'));
             return;
@@ -442,22 +454,39 @@ class TxtReaderWorker {
         };
         this.iterator = new Iterator();
         this.iterator.createMap = true;
+        if (sniffConfig) {
+            this.sniffLines = [];
+            this.iterator.linesToIterate = sniffConfig.lineNumber;
+            this.iterator.createMap = false;
+        }
         this.iterator.endOffset = this.file.size;
         if (onNewLineConfig) {
             this.iterator.bindEachLineFromConfig(onNewLineConfig);
         }
         this.iterateLinesInternal((line: Uint8Array, progress: number) => {
-            this.lineCount++;
-        }, () => {
-            this.quickSearchMap = this.iterator.map;
-            let result: any = {
-                lineCount: this.lineCount
-            };
-            if (onNewLineConfig) {
-                delete this.iterator.eachLineScope['decode'];
-                result.scope = this.iterator.eachLineScope;
+            if (!sniffConfig) {
+                this.lineCount++;
+            } else {
+                this.sniffLines.push(utf8decoder.decode(line));
             }
-            respondMessage(new ResponseMessage(result));
+        }, () => {
+            if (!sniffConfig) {
+                this.quickSearchMap = this.iterator.map;
+                let result: any = {
+                    lineCount: this.lineCount
+                };
+                if (onNewLineConfig) {
+                    delete this.iterator.eachLineScope['decode'];
+                    result.scope = this.iterator.eachLineScope;
+                }
+                respondMessage(new ResponseMessage(result));
+            } else {
+                // sniff complete
+                respondMessage(new ResponseMessage(this.sniffLines));
+                this.sniffLines = [];
+                delete this.sniffLines;
+                sniffWorker = null;
+            }
         });
     }
 

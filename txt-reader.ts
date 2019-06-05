@@ -14,6 +14,10 @@ interface ILoadFileTaskResponse extends ITaskResponse {
     result: LoadFileResult;
 }
 
+interface ISniffLinesTaskResponse extends ITaskResponse {
+    result: string[];
+}
+
 interface IGetLinesTaskResponse extends ITaskResponse {
     result: string[];
 }
@@ -228,6 +232,13 @@ export class TxtReader {
                 }
             }
         }, false);
+    }
+
+    public sniffLines(file: File, lineNumber: number): TxtReaderTask<ISniffLinesTaskResponse> {
+        return this.newTask<ISniffLinesTaskResponse>('sniffLines', {
+            file: file,
+            lineNumber: lineNumber
+        });
     }
 
     public loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse> {

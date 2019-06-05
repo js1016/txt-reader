@@ -125,4 +125,25 @@ $('#iterate-lines').click(function () {
     });
 });
 
+$('#sniff-lines').click(function () {
+    showRunning();
+    clearConsole();
+    var lineNumber = $('#sniff-line-number').val();
+    //var fromBeginToEnd = $('#sniff-line-begin-to-end').val() === 'true';
+    var iisLogFile = document.getElementById('file-input').files[0];
+    txtReader.sniffLines(iisLogFile, Number(lineNumber))
+        .progress(progress => {
+            log(`Sniffing progress: ${progress} %.`);
+        })
+        .then(response => {
+            success('First line: ' + response.result[0]);
+            success('Last line: ' + response.result[response.result.length - 1]);
+            success(`Successfully sniffed ${response.result.length} lines, Time taken: ${response.timeTaken}`);
+            hideRunning();
+        }).catch(reason => {
+            error(reason);
+            hideRunning();
+        })
+});
+
 window.txtReader = txtReader;

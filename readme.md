@@ -2,7 +2,7 @@ txt-reader
 ==========
 [![NPM version](https://img.shields.io/npm/v/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![NPM downloads](http://img.shields.io/npm/dm/txt-reader.svg?style=flat)](https://www.npmjs.com/package/txt-reader) [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
-TxtReader is a JavaScript library to read text file in browsers based on [FileReader API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader). It can read very large, huge, giant files (GB+). It offloads the file reading operations to [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so that it won't block browser UI rendering even though it is reading a very large file. And you can easily track the reading progress by using promise-like methods. [Click here to check the demo](https://js1016.github.io/txt-reader/)
+TxtReader is a JavaScript library to read text file in browsers based on [FileReader API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader). It can read very large, huge, giant files (GB+). It offloads the file reading operations to [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so that it won't block browser UI rendering even when it is reading a very large file. And you can easily track the reading progress by using promise-like methods. [Click here to check the demo](https://js1016.github.io/txt-reader/)
 # Contents
 * [Installation](#user-content-installation)
     * [npm](#user-content-npm)
@@ -14,6 +14,7 @@ TxtReader is a JavaScript library to read text file in browsers based on [FileRe
     * [loadFile(file[ ,iteratorConfig])](#user-content-loadfilefile-iteratorconfig)
     * [getLines(start, count)](#user-content-getlinesstart-count)
     * [iterateLines(iteratorConfig[, start, count])](#user-content-iteratelinesiteratorconfig-start-count)
+    * [sniffLines(file, lineNumber)](#user-content-snifflinesfile-linenumber)
 * [Properties](#user-content-properties)
     * [lineCount](#user-content-linecount)
     * [utf8decoder](#user-content-utf8decoder)
@@ -79,10 +80,10 @@ reader.loadFile(file[, iteratorConfig])
 
 #### Arguments
 
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| file      | File | The text file to be read, only supports __UTF-8__ encoding.|
-| iteratorConfig      | Object | Optional. The `iteratorConfig` allows you to run customized iterator function for each line in the text file during loading the file. For detailed usage, please check the [iterateLines()](#iteratelines-iteratorconfig-start-count-) method. <br>__NOTE__ that inappropriate usage of iterator may bring performance issue.|
+| Parameter      |  Type  | Description                                                                                                                                                                                                                                                                                                                   |
+| -------------- | :----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| file           |  File  | The text file to be read, only supports __UTF-8__ encoding.                                                                                                                                                                                                                                                                   |
+| iteratorConfig | Object | Optional. The `iteratorConfig` allows you to run customized iterator function for each line in the text file during loading the file. For detailed usage, please check the [iterateLines()](#iteratelines-iteratorconfig-start-count-) method. <br>__NOTE__ that inappropriate usage of iterator may bring performance issue. |
 
 
 #### Return value
@@ -90,17 +91,17 @@ This method returns an instance of `TxtReaderTask`, the `TxtReaderTask` implemen
 
 ###### .progress(onProgress)
 
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| onProgress      | Function | Function to execute for each task progress update message, taking one argument:<br> __progress__ (Number): Indicating the current task progress in `Number` from 0-100.|
+| Parameter  |   Type   | Description                                                                                                                                                             |
+| ---------- | :------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| onProgress | Function | Function to execute for each task progress update message, taking one argument:<br> __progress__ (Number): Indicating the current task progress in `Number` from 0-100. |
 
 Appends an `onProgress` handler to the `TxtReaderTask` and returns the `TxtReaderTask`.
 
 ###### .then(onComplete)
 
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| onComplete      | Function | Function to execute when a task completes, taking one argument:<br>__response__ (TaskResponse) where you can get the loadFile task execution time taken (millisecond) in `response.timeTaken`, the text file line number in `response.result.lineCount` and the iterator `this` scope in `response.result.scope` if a customized iterator was specified.|
+| Parameter  |   Type   | Description                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | :------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| onComplete | Function | Function to execute when a task completes, taking one argument:<br>__response__ (TaskResponse) where you can get the loadFile task execution time taken (millisecond) in `response.timeTaken`, the text file line number in `response.result.lineCount` and the iterator `this` scope in `response.result.scope` if a customized iterator was specified. |
 
 Appends an `onComplete` handler to the `TxtReaderTask` and returns the `TxtReaderTask`. The `TaskResponse` is an object with following structure.
 
@@ -113,9 +114,9 @@ interface ITaskResponse {
 ```
 
 ##### .catch(onFail)
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| onFail      | Function | Function to execute when a task fails, taking one argument: <br>__reason__ (String): The failure reason|
+| Parameter |   Type   | Description                                                                                             |
+| --------- | :------: | ------------------------------------------------------------------------------------------------------- |
+| onFail    | Function | Function to execute when a task fails, taking one argument: <br>__reason__ (String): The failure reason |
 
 Appends an `onFail` handler to the `TxtReaderTask` and returns the `TxtReaderTask`.
 
@@ -143,10 +144,10 @@ reader.getLines(start, count)
 
 #### Arguments
 
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| start      | Number | The line number of the first line to include in the returned array.|
-| count      | Number | The number of lines to get.|
+| Parameter |  Type  | Description                                                         |
+| --------- | :----: | ------------------------------------------------------------------- |
+| start     | Number | The line number of the first line to include in the returned array. |
+| count     | Number | The number of lines to get.                                         |
 
 #### Return value
 Same as `loadFile()` method, `getLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback.
@@ -175,22 +176,53 @@ reader.iterateLines({
 
 #### Arguments
 
-| Parameter        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| iteratorConfig      | Object | Object to define the iterator method and the `this` scope of the iterator.|
-| start      | Number | Optional. The line number of the first line to iterate. If you don't specify the start and count arguments, it will iterate all lines in the text file.|
-| count      | Number | Optional. The number of lines to iterate.|
+| Parameter      |  Type  | Description                                                                                                                                             |
+| -------------- | :----: | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| iteratorConfig | Object | Object to define the iterator method and the `this` scope of the iterator.                                                                              |
+| start          | Number | Optional. The line number of the first line to iterate. If you don't specify the start and count arguments, it will iterate all lines in the text file. |
+| count          | Number | Optional. The number of lines to iterate.                                                                                                               |
 
 ### The `iteratorConfig`
 The `iteratorConfig` takes two properties:
 
-| Property Name        | Type           | Description  |
-| ------------- |:-------------:| -----|
-| eachLine      | Function | The iterator function to execute for each line in the selected range, taking three arguments:<br>__raw__ (Uint8Array): the raw data of current line in Uint8Array format, you can use `this.decode(raw)` in iterator to decode it to readable string.<br>__progress__ (Number): a more accurate progress number of the iterating process for current line<br>__lineNumber__ (Number): the line number of current line|
-| scope      | Object | Optional. You can initialize any properties here and get or set the properties via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback.|
+| Property Name |   Type   | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| eachLine      | Function | The iterator function to execute for each line in the selected range, taking three arguments:<br>__raw__ (Uint8Array): the raw data of current line in Uint8Array format, you can use `this.decode(raw)` in iterator to decode it to readable string.<br>__progress__ (Number): a more accurate progress number of the iterating process for current line<br>__lineNumber__ (Number): the line number of current line |
+| scope         |  Object  | Optional. You can initialize any properties here and get or set the properties via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback.                                                                                                                                                                                                          |
 
 #### Return value
 Same as `loadFile()` method, `iterateLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
+
+## sniffLines(file, lineNumber)
+`getLines()` and `iterateLines()` methods require the file to be loaded via `loadFile()` first since they support get/iterate partial lines from the middle of the file. Sometimes you don't want to load the whole file first but just want to sniff the first few lines of the file. `sniffLines()` method can sniff first given number lines without loading the file (knowing the total line count of the file). Similar to `getLines()`, it is an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+
+#### Syntax
+```javascript
+reader.sniffLines(file, lineNumber)
+.progress(function(progress) {
+    // onProgress callback
+    // progress (Number): task progress in Number value from 1-100
+})
+.then(function(resposne) {
+    // onComplete callback
+    // resposne.timeTaken (Number): task time taken in millisecond
+    // response.result (Array[String]): sniffed lines collection in string array
+})
+.catch(function(reason) {
+    // onFail callback
+    // reason (String): failure reason
+});
+```
+
+#### Arguments
+
+| Parameter  |  Type  | Description                                                                                                                               |
+| ---------- | :----: | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| file       |  File  | The text file to be sniffed, only supports __UTF-8__ encoding                                                                             |
+| lineNumber | Number | How many lines to sniff. If you specify a number larger than the actual line count of the file, it will return all the lines of the file. |
+
+#### Return value
+Same as `loadFile()` method, `sniffLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback.
 
 # Properties
 ## lineCount
@@ -208,6 +240,17 @@ If the browser natively supports [TextDecoder](https://developer.mozilla.org/en-
 ```javascript
 var reader = new TxtReader();
 var file = document.getElementById('file-input').files[0];
+
+reader.sniffLines(file, 5)
+    .progress(function (progress) {
+        console.log('Sniffing lines progress: ' + progress + '%');
+    })
+    .then(function (response) {
+        console.log('The first five lines are: ', response.result);
+    })
+    .catch(function (reason) {
+        console.log('sniffLines failed with error: ' + reason);
+    });
 
 reader.loadFile(file)
     .progress(function (progress) {
