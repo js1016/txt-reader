@@ -1,6 +1,7 @@
 const TxtReader = require('./../txt-reader.js').TxtReader;
 var reader = new TxtReader();
 var file;
+
 reader.sniffLines(file, 5)
     .progress(function (progress) {
         console.log('Sniffing lines progress: ' + progress + '%');

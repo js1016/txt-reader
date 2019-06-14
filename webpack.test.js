@@ -1,5 +1,5 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const CleanWebpackPlugin = require('clean-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const webpack = require('webpack');
 
 module.exports = {
@@ -28,9 +28,7 @@ module.exports = {
         ]
     },
     plugins: [
-        new CleanWebpackPlugin({
-            cleanOnceBeforeBuildPatterns: [__dirname + '/tests/dist']
-        }),
+        new CleanWebpackPlugin(),
         new HtmlWebpackPlugin({
             title: 'Custom template',
             template: './tests/index.html'

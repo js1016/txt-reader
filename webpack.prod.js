@@ -1,7 +1,7 @@
 const merge = require('webpack-merge');
 const common = require('./webpack.common');
 const path = require('path');
-const CleanWebpackPlugin = require('clean-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = merge(common, {
     entry: {
@@ -12,9 +12,7 @@ module.exports = merge(common, {
         filename: '[name].js'
     },
     plugins: [
-        new CleanWebpackPlugin({
-            cleanOnceBeforeBuildPatterns: ['dist']
-        })
+        new CleanWebpackPlugin()
     ],
     mode: 'production'
 });

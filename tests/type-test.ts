@@ -14,10 +14,39 @@ a.loadFile(file, {
     },
     scope: {
     }
-})
+});
+a.getSporadicLines([1, 2, 3, { start: 1, end: 2 }])
+    .progress(progress => {
+        console.log(progress);
+    })
+    .then(response => {
+        response.result[1]
+    });
+a.iterateSporadicLines({
+    eachLine: function (raw, progress, lineNumber) {
+
+    },
+    scope: {}
+}, [1, 2, 3, 4])
+    .then(response => {
+        response.result;
+    })
 a.loadFile(file).then(response => {
 
 })
+a.getSporadicLines([1, 2, 3, 4, { start: 1, end: 2 }])
+    .progress(progress => {
+
+    })
+    .then(response => {
+    })
+a.iterateSporadicLines({
+    eachLine: function (raw, progress, lineNumber) {
+
+    },
+    scope: {}
+}, [1, 2, 3, 4, { start: 1, count: 1 }]);
+
 a.getLines(1, 20).then(response => {
 })
 a.iterateLines({

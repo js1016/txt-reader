@@ -1,7 +1,6 @@
 import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
-import { TxtReader } from './txt-reader';
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, SporadicLinesMap, IGetSporadicLinesResult, SporadicLineItem } from './txt-reader-common'
 
 interface ILinePosition {
     line: number;
@@ -10,8 +9,8 @@ interface ILinePosition {
 
 interface IIterateLinesConfig {
     config: IIteratorConfigMessage;
-    start: number;
-    count: number;
+    start: number | null;
+    count: number | null;
 }
 
 interface ISniffConfig {
@@ -25,6 +24,7 @@ let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 50;
 let currentTaskId: number | null = null;
 
 let txtReaderWorker: TxtReaderWorker | null = null;
+
 let sniffWorker: TxtReaderWorker | null = null;
 
 let verboseLogging: boolean = false;
@@ -42,7 +42,7 @@ const respondTransferrableMessage = (responseMessage: ResponseMessage, arr: Tran
     if (responseMessage.done) {
         currentTaskId = null;
     }
-    postMessage.apply(null, [responseMessage, arr]);
+    postMessage(responseMessage, arr);
 };
 
 const createProgressResponseMessage = (progress: Number): ResponseMessage => {
@@ -71,6 +71,37 @@ const mergeUint8Array = (x: Uint8Array, y: Uint8Array): Uint8Array => {
     z.set(y, x.byteLength);
     return z;
 };
+
+let isLineWithinLinesRange = (line: number, linesRange: LinesRange): boolean => {
+    let linesEnd = getLinesRangeEnd(linesRange);
+    return line >= linesRange.start && line <= linesEnd;
+};
+
+let getLinesRangeEnd = (linesRange: LinesRange): number => {
+    return linesRange.count !== undefined ? linesRange.start + linesRange.count - 1 : linesRange.end;
+};
+
+let getLinesRangeCount = (linesRange: LinesRange): number => {
+    return linesRange.count !== undefined ? linesRange.count : linesRange.end - linesRange.start + 1;
+}
+
+let getStartCountForSporadicLineItem = (item: SporadicLineItem): { start: number, count: number } => {
+    if (typeof item === 'number') {
+        return {
+            start: item,
+            count: 1
+        }
+    } else {
+        if (item.end !== undefined) {
+            return {
+                start: item.start,
+                count: item.end - item.start + 1
+            }
+        } else {
+            return item;
+        }
+    }
+}
 
 self.addEventListener('message', (event: MessageEvent) => {
     let req: IRequestMessage = event.data;
@@ -105,9 +136,19 @@ self.addEventListener('message', (event: MessageEvent) => {
                 (<TxtReaderWorker>txtReaderWorker).getLines(req.data.start, req.data.count);
             }
             break;
+        case 'getSporadicLines':
+            if (validateWorker()) {
+                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data);
+            }
+            break;
         case 'iterateLines':
             if (validateWorker()) {
                 (<TxtReaderWorker>txtReaderWorker).iterateLines(req.data)
+            }
+            break;
+        case 'iterateSporadicLines':
+            if (validateWorker()) {
+                (<TxtReaderWorker>txtReaderWorker).iterateSporadicLines(req.data.config, req.data.lines);
             }
             break;
         case 'sniffLines':
@@ -196,12 +237,18 @@ class Iterator {
     // start line number that we need to get
     public startLineNumber: number;
 
+    // total line number of sporadicLinesMap
+    public sporadicTotal: number;
+
+    // processed sporadic lines
+    public sporadicProcessed: number;
+
     private processedViewLength: number;
 
     public lineBreakLength: number;
 
     // last progress
-    private lastProgress: number | null;
+    public lastProgress: number | null;
 
     public map: ILinePosition[];
 
@@ -226,6 +273,8 @@ class Iterator {
         this.lineBreakLength = 0;
         this.map = [];
         this.lastMappedProgress = null;
+        this.sporadicProcessed = 0;
+        this.sporadicTotal = 0;
     }
 
     public shouldBreak(): boolean {
@@ -247,7 +296,11 @@ class Iterator {
             (isPartialIterate && this.currentLineNumber >= this.startLineNumber)) {
             this.linesProcessed++;
             if (isPartialIterate) {
-                progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
+                if (this.sporadicTotal === 0) {
+                    progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
+                } else {
+                    progress = Math.round((this.sporadicProcessed + this.linesProcessed) / this.sporadicTotal * 10000) / 100;
+                }
             } else {
                 progress = Math.round(this.processedViewLength / this.endOffset * 10000) / 100;
             }
@@ -297,7 +350,10 @@ class Iterator {
 
     public bindEachLineFromConfig(config: IIteratorConfigMessage): void {
         this.onEachLine = new Function('return ' + config.eachLine)();
-        this.eachLineScope = config.scope;
+        if (this.eachLineScope === null) {
+            // for sporadic iterate, eachLineScope will be set explicitly
+            this.eachLineScope = config.scope;
+        }
         this.eachLineScope['decode'] = (value: Uint8Array): string => {
             return utf8decoder.decode(value);
         }
@@ -520,28 +576,70 @@ class TxtReaderWorker {
         this.seek();
     }
 
-    public iterateLines(data: IIterateLinesConfig) {
-        let config: IIteratorConfigMessage = data.config;
+    private _iterateLines(config: IIteratorConfigMessage, start: number | null, count: number | null, onSeekCompleteFunc: () => void) {
         this.iterator.offset = 0;
         this.iterator.endOffset = this.file.size;
         this.iterator.bindEachLineFromConfig(config);
         this.iterator.onSeekComplete = () => {
             delete this.iterator.eachLineScope['decode'];
-            respondMessage(new ResponseMessage(this.iterator.eachLineScope));
+            onSeekCompleteFunc();
         }
-        if (data.start !== null && data.count !== null) {
-            let setResult: boolean = this.setPartialIterator(data.start, data.count);
-            if (!setResult) {
+        if (start !== null && count !== null) {
+            if (this.setPartialIterator(start, count)) {
+                this.seek();
+            } else {
                 return;
             }
         }
-        this.seek();
+    }
+
+    public iterateLines(data: IIterateLinesConfig) {
+        let config: IIteratorConfigMessage = data.config;
+        this._iterateLines(config, data.start, data.count, () => {
+            respondMessage(new ResponseMessage(this.iterator.eachLineScope));
+        });
+    }
+
+    public iterateSporadicLines(config: IIteratorConfigMessage, sporadicLinesMap: SporadicLinesMap) {
+        let tempScope: any = null;
+        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+        let sporadicTotal = 0;
+        let processedCount = 0;
+        for (let i = 0; i < sporadicLinesMap.length; i++) {
+            if (typeof sporadicLinesMap[i] === 'number') {
+                sporadicTotal++;
+            } else {
+                sporadicTotal += getLinesRangeCount(<LinesRange>sporadicLinesMap[i]);
+            }
+        }
+        let process = (index: number) => {
+            let item = getStartCountForSporadicLineItem(sporadicLinesMap[index]);
+            this.iterator.sporadicTotal = sporadicTotal;
+            this.iterator.sporadicProcessed = processedCount;
+            this.iterator.lastProgress = Math.round(processedCount / sporadicTotal * 10000) / 100;
+            this.iterator.eachLineScope = tempScope;
+            this._iterateLines(config, item.start, item.count, () => {
+                processedCount += item.count;
+                tempScope = this.iterator.eachLineScope;
+                if (index < sporadicLinesMap.length - 1) {
+                    setTimeout(() => {
+                        process(index + 1);
+                    }, 0);
+                } else {
+                    delete tempScope['decode'];
+                    respondMessage(new ResponseMessage(tempScope));
+                }
+            });
+        }
+        process(0);
     }
 
     private seek() {
         let finishDueToLinesToIterateReached: boolean = this.iterator.linesToIterate > 0 && this.iterator.linesProcessed === this.iterator.linesToIterate
         if (this.iterator.offset >= this.iterator.endOffset || finishDueToLinesToIterateReached) {
-            respondMessage(createProgressResponseMessage(100));
+            if (this.iterator.sporadicTotal === 0 || this.iterator.sporadicProcessed + this.iterator.linesProcessed === this.iterator.sporadicTotal) {
+                respondMessage(createProgressResponseMessage(100));
+            }
             if (this.iterator.lineView.byteLength && !finishDueToLinesToIterateReached) {
                 this.iterator.hitLine(this.iterator.lineView);
                 this.iterator.lineView = new Uint8Array(0);
@@ -556,7 +654,7 @@ class TxtReaderWorker {
         }
     }
 
-    public getLines(start: number, count: number) {
+    private _getLines(start: number, count: number, onSeekCompleteFunc: (lines: Uint8Array[], linesBuffer: ArrayBuffer[]) => void): void {
         if (this.setPartialIterator(start, count)) {
             let lines: Uint8Array[] = [];
             let linesBuffer: ArrayBuffer[] = [];
@@ -566,12 +664,132 @@ class TxtReaderWorker {
                     linesBuffer.push(line.buffer);
                 }
             }, () => {
-                if (useTransferrable) {
-                    respondTransferrableMessage(new ResponseMessage(lines), linesBuffer);
+                setTimeout(() => {
+                    onSeekCompleteFunc(lines, linesBuffer);
+                }, 0);
+            });
+        }
+    }
+
+    public getLines(start: number, count: number): void {
+        this._getLines(start, count, (lines, linesBuffer) => {
+            if (useTransferrable) {
+                respondTransferrableMessage(new ResponseMessage(lines), linesBuffer);
+            } else {
+                respondMessage(new ResponseMessage(lines));
+            }
+        });
+    }
+
+    public getSporadicLines(sporadicLinesMap: SporadicLinesMap) {
+        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+        let sporadicTotal = 0;
+        for (let i = 0; i < sporadicLinesMap.length; i++) {
+            if (typeof sporadicLinesMap[i] === 'number') {
+                sporadicTotal++;
+            } else {
+                sporadicTotal += getLinesRangeCount(<LinesRange>sporadicLinesMap[i]);
+            }
+        }
+        let result: IGetSporadicLinesResult[] = [];
+        let process = (index: number) => {
+            let item = getStartCountForSporadicLineItem(sporadicLinesMap[index]);
+            this.iterator.sporadicTotal = sporadicTotal;
+            this.iterator.sporadicProcessed = result.length;
+            this.iterator.lastProgress = Math.round(result.length / sporadicTotal * 10000) / 100;
+            this._getLines(item.start, item.count, lines => {
+                for (let i = 0; i < lines.length; i++) {
+                    result.push({
+                        lineNumber: item.start + i,
+                        value: utf8decoder.decode(lines[i])
+                    });
+                }
+                if (index < sporadicLinesMap.length - 1) {
+                    process(index + 1);
                 } else {
-                    respondMessage(new ResponseMessage(lines));
+                    respondMessage(new ResponseMessage(result));
                 }
             });
         }
+        process(0);
+    }
+
+    private sortAndMergeLineMap(lineMap: SporadicLinesMap): SporadicLinesMap {
+        lineMap.sort(function (a, b) {
+            // sort lines in ascending order
+            if (typeof a === 'number' && typeof b === 'number') {
+                return a > b ? 1 : -1;
+            } else if (typeof a === 'number' && typeof b === 'object') {
+                return a > b.start ? 1 : -1;
+            } else if (typeof a === 'object' && typeof b === 'number') {
+                return a.start > b ? 1 : -1;
+            } else if (typeof a === 'object' && typeof b === 'object') {
+                return a.start > b.start ? 1 : -1;
+            }
+            return 0;
+        });
+        for (let i = 1; i < lineMap.length; i++) {
+            // compare lines[i] with lines[i-1]
+            let prev = lineMap[i - 1];
+            let current = lineMap[i];
+            if (typeof current === 'number' && typeof prev === 'number') {
+                if (current === prev) {
+                    // duplicate line number, remove current one
+                    lineMap.splice(i, 1);
+                    i--;
+                } else if (current === prev + 1) {
+                    lineMap[i - 1] = {
+                        start: prev,
+                        end: current
+                    }
+                    lineMap.splice(i, 1);
+                    i--;
+                }
+            } else if (typeof current === 'number' && typeof prev === 'object') {
+                let prevEnd = getLinesRangeEnd(prev);
+                if (isLineWithinLinesRange(current, prev)) {
+                    lineMap.splice(i, 1);
+                    i--;
+                } else if (current === prevEnd + 1) {
+                    if (prev.count !== undefined) {
+                        prev.count++;
+                    } else {
+                        prev.end = current;
+                    }
+                    lineMap.splice(i, 1);
+                    i--;
+                }
+            } else if (typeof current === 'object' && typeof prev === 'number') {
+                if (isLineWithinLinesRange(prev, current)) {
+                    lineMap.splice(i - 1, 1);
+                    i--;
+                }
+            } else if (typeof current === 'object' && typeof prev === 'object') {
+                let currentEnd = getLinesRangeEnd(current);
+                let prevEnd = getLinesRangeEnd(prev);
+                if (prevEnd >= current.start && prevEnd <= currentEnd) {
+                    // overlap, remove the prev one
+                    current.start = prev.start;
+                    if (current.count !== undefined) {
+                        current.count = currentEnd - current.start + 1;
+                    }
+                    lineMap.splice(i - 1, 1);
+                    i--;
+                } else if (current.start >= prev.start && currentEnd <= prevEnd) {
+                    // current within prev range, delete current
+                    lineMap.splice(i, 1);
+                    i--;
+                } else if (current.start === prevEnd + 1) {
+                    if (prev.count !== undefined) {
+                        prev.count += currentEnd - current.start + 1;
+                    } else {
+                        prev.end = currentEnd;
+                    }
+                    lineMap.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+        return lineMap;
     }
 }

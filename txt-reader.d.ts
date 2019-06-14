@@ -8,8 +8,13 @@ declare namespace TxtReaderLib {
     }
 
     type LoadFileResult = {
-        lineCount: number,
-        scope?: any
+        lineCount: number;
+        scope?: any;
+    }
+
+    interface IGetSporadicLinesResult {
+        lineNumber: number;
+        value: string;
     }
 
     interface ILoadFileTaskResponse extends ITaskResponse {
@@ -31,6 +36,11 @@ declare namespace TxtReaderLib {
     interface IIterateLinesTaskResponse extends ITaskResponse {
         result: any;
     }
+
+    interface IGetSporadicLinesTaskResponse extends ITaskResponse {
+        result: IGetSporadicLinesResult[]
+    }
+
     interface IIteratorEachLineThis {
         decode(value: Uint8Array): string;
         [key: string]: any;
@@ -40,6 +50,24 @@ declare namespace TxtReaderLib {
         eachLine: (this: IIteratorEachLineThis, raw: Uint8Array, progress: number, lineNumber: number) => void;
         scope?: object;
     }
+
+    interface ILinesRange {
+        start: number;
+        count?: number;
+        end?: number;
+    }
+
+    type LinesRange = RequireOnlyOne<ILinesRange, 'count' | 'end'>;
+    type SporadicLineItem = number | LinesRange;
+    type SporadicLinesMap = (SporadicLineItem)[];
+
+    type RequireOnlyOne<T, Keys extends keyof T = keyof T> =
+        Pick<T, Exclude<keyof T, Keys>>
+        & {
+            [K in Keys]-?:
+            Required<Pick<T, K>>
+            & Partial<Record<Exclude<Keys, K>, undefined>>
+        }[Keys]
 
     interface TxtReaderTask<T> {
         then(onComplete: (response: T) => void): TxtReaderTask<T>;
@@ -58,6 +86,8 @@ declare namespace TxtReaderLib {
         getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse>;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;
         sniffLines(file: File, lineNumber: number): TxtReaderTask<ISniffLinesTaskResponse>;
+        getSporadicLines(sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IGetSporadicLinesTaskResponse>;
+        iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse>;
     }
 
     var TxtReader: TxtReader_Static

@@ -146,4 +146,64 @@ $('#sniff-lines').click(function () {
         })
 });
 
+$('#get-sporadic-lines').click(function () {
+    showRunning();
+    clearConsole();
+    let lines = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, { start: 500, count: 30 }, { start: 900, count: 3008 }];
+    txtReader.getSporadicLines([1, 3, { start: 100, count: 5 }, { start: 200, end: 205 }])
+        .progress(function (progress) {
+
+        })
+        .then(function (response) {
+            response.result
+        })
+        .catch(function (reason) {
+
+        });
+    txtReader.getSporadicLines(lines)
+        .progress(function (progress) {
+            log(`Getting Sporadic Lines progress: ${progress}`)
+        })
+        .then(response => {
+            let first = response.result[0];
+            let last = response.result[response.result.length - 1];
+            success(`First line (${first.lineNumber}): ${first.value}`);
+            success(`Last line (${last.lineNumber}): ${last.value}`);
+            success(`Successfully get ${response.result.length} lines, Time taken: ${response.timeTaken}`);
+        })
+        .catch(reason => {
+            error(reason);
+            hideRunning();
+        })
+});
+
+$('#iterate-sporadic-lines').click(function () {
+    showRunning();
+    clearConsole();
+    let lines = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, { start: 500, count: 30 }, { start: 900, count: 3008 }];
+    txtReader.iterateSporadicLines({
+        eachLine: function (raw, progress, lineNumber) {
+            let value = this.decode(raw);
+            console.log(progress, lineNumber);
+            this.arr.push({
+                value: value,
+                lineNumber: lineNumber
+            })
+        },
+        scope: {
+            arr: []
+        }
+    }, lines)
+        .progress(function (progress) {
+            log(`Iterating Sporadic Lines progress: ${progress}`)
+        })
+        .then(response => {
+            console.log(response);
+        })
+        .catch(reason => {
+            error(reason);
+            hideRunning();
+        })
+});
+
 window.txtReader = txtReader;

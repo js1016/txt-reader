@@ -1,7 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, SporadicLinesMap, IGetSporadicLinesResult } from './txt-reader-common'
 import { TextDecoder_Instance } from 'text-encoding-shim';
 
 interface ITaskResponse {
@@ -22,6 +22,10 @@ interface IGetLinesTaskResponse extends ITaskResponse {
     result: string[];
 }
 
+interface IGetSporadicLinesTaskResponse extends ITaskResponse {
+    result: IGetSporadicLinesResult[]
+}
+
 interface ISetChunkSizeResponse extends ITaskResponse {
     result: number;
 }
@@ -31,8 +35,8 @@ interface IIterateLinesTaskResponse extends ITaskResponse {
 }
 
 type LoadFileResult = {
-    lineCount: number,
-    scope?: any
+    lineCount: number;
+    scope?: any;
 }
 
 interface IResponseMessageEvent extends MessageEvent {
@@ -271,14 +275,15 @@ export class TxtReader {
     }
 
     public getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse> {
-        return this.newTask<IGetLinesTaskResponse>('getLines', {
-            start: start,
-            count: count
-        }).then((response) => {
+        return this.newTask<IGetLinesTaskResponse>('getLines', { start: start, count: count }).then((response) => {
             for (let i = 0; i < response.result.length; i++) {
-                response.result[i] = this.utf8decoder.decode(response.result[i] as any as ArrayBufferView);
+                response.result[i] = this.utf8decoder.decode(response.result[i] as any as Uint8Array);
             }
         });
+    }
+
+    public getSporadicLines(sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IGetSporadicLinesTaskResponse> {
+        return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', sporadicLinesMap);
     }
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
@@ -286,6 +291,13 @@ export class TxtReader {
             config: this.getItertorConfigMessage(config),
             start: start || null,
             count: count || null
+        });
+    }
+
+    public iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse> {
+        return this.newTask<IIterateLinesTaskResponse>('iterateSporadicLines', {
+            config: this.getItertorConfigMessage(config),
+            lines: sporadicLinesMap
         });
     }
 

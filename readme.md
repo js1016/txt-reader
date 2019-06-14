@@ -13,7 +13,9 @@ TxtReader is a JavaScript library to read text file in browsers based on [FileRe
     * [Constructor](#user-content-instantiate-the-txtreader)
     * [loadFile(file[ ,iteratorConfig])](#user-content-loadfilefile-iteratorconfig)
     * [getLines(start, count)](#user-content-getlinesstart-count)
+    * [getSporadicLines(sporadicLinesMap)](#user-content-getsporadiclinessporadiclinesmap)
     * [iterateLines(iteratorConfig[, start, count])](#user-content-iteratelinesiteratorconfig-start-count)
+    * [iterateSporadicLines(iteratorConfig, sporadicLinesMap)](#user-content-iteratesporadiclinesiteratorconfig-sporadiclinesmap)
     * [sniffLines(file, lineNumber)](#user-content-snifflinesfile-linenumber)
 * [Properties](#user-content-properties)
     * [lineCount](#user-content-linecount)
@@ -64,26 +66,26 @@ After creating instance, we can load any text file into `TxtReader` using `loadF
 reader.loadFile(file[, iteratorConfig])
 .progress(function(progress) {
     // onProgress callback
-    // progress (Number): task progress in Number value from 1-100
+    // progress (number): task progress in Number value from 1-100
 })
 .then(function(response) {
     // onComplete callback
-    // response.timeTaken (Number): task time taken in millisecond
-    // response.result.lineCount (Number): total line number
-    // response.result.scope (Object): if you assigned an iterator, the iterator "this" scope can be accessed here
+    // response.timeTaken (number): task time taken in millisecond
+    // response.result.lineCount (number): total line number
+    // response.result.scope (object): if you assigned an iterator, the iterator "this" scope can be accessed here
 })
 .catch(function(reason) {
     // onFail callback
-    // reason (String): failure reason
+    // reason (string): failure reason
 });
 ```
 
 #### Arguments
 
-| Parameter      |  Type  | Description                                                                                                                                                                                                                                                                                                                   |
-| -------------- | :----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| file           |  File  | The text file to be read, only supports __UTF-8__ encoding.                                                                                                                                                                                                                                                                   |
-| iteratorConfig | Object | Optional. The `iteratorConfig` allows you to run customized iterator function for each line in the text file during loading the file. For detailed usage, please check the [iterateLines()](#iteratelines-iteratorconfig-start-count-) method. <br>__NOTE__ that inappropriate usage of iterator may bring performance issue. |
+| Parameter      |  Type  | Description                                                                                                                                                                                                                                                                                                                              |
+| -------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| file           |  File  | The text file to be read, only supports __UTF-8__ encoding.                                                                                                                                                                                                                                                                              |
+| iteratorConfig | Object | Optional. The `iteratorConfig` allows you to run customized iterator function for each line in the text file during loading the file. For detailed usage, please check the [iterateLines()](#user-content-iteratelinesiteratorconfig-start-count) method. <br>__NOTE__ that inappropriate usage of iterator may bring performance issue. |
 
 
 #### Return value
@@ -121,7 +123,7 @@ interface ITaskResponse {
 Appends an `onFail` handler to the `TxtReaderTask` and returns the `TxtReaderTask`.
 
 ## getLines(start, count)
-Get specific lines from the text file. Similar to `TxtParser.loadFile(file[ ,iteratorConfig])`, this is also an asynchronous function.
+Get specific lines from a loaded text file. You need to load the file via `loadFile()` before calling this method. Similar to `TxtParser.loadFile(file[ ,iteratorConfig])`, this is also an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
 
 #### Syntax
 
@@ -129,16 +131,16 @@ Get specific lines from the text file. Similar to `TxtParser.loadFile(file[ ,ite
 reader.getLines(start, count)
 .progress(function(progress) {
     // onProgress callback
-    // progress (Number): task progress in Number value from 1-100
+    // progress (number): task progress in Number value from 1-100
 })
 .then(function(response) {
     // onComplete callback
-    // response.timeTaken (Number): task time taken in millisecond
-    // response.result (Array[String]): lines collection in string array
+    // response.timeTaken (number): task time taken in millisecond
+    // response.result (string[]): lines collection in string array
 })
 .catch(function(reason) {
     // onFail callback
-    // reason (String): failure reason
+    // reason (string): failure reason
 });
 ```
 
@@ -147,13 +149,62 @@ reader.getLines(start, count)
 | Parameter |  Type  | Description                                                         |
 | --------- | :----: | ------------------------------------------------------------------- |
 | start     | Number | The line number of the first line to include in the returned array. |
-| count     | Number | The number of lines to get.                                         |
+| count     | Number | The amount of lines to get.                                         |
 
 #### Return value
 Same as `loadFile()` method, `getLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback.
 
+## getSporadicLines(sporadicLinesMap)
+`getLine()` method can only get continuous lines. `getSporadicLines()` allows you to get sporadic lines from a loaded text file. You need to load the file via `loadFile()` before calling this method. Similar to `loadFile()`, this is also an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+
+#### Syntax
+
+```javascript
+reader.getSporadicLines(sporadicLinesMap)
+    .progress(function (progress) {
+        // onProgress callback
+        // progress (number): task progress in Number value from 1-100
+    })
+    .then(function (response) {
+        // onComplete callback
+        // response.timeTaken (number): task time taken in millisecond
+        // response.result ({lineNumber: number, value: string}[]): lines collection in array, each item is an object containing two properties: lineNumber and value
+    })
+    .catch(function (reason) {
+        // onFail callback
+        // reason (string): failure reason
+    });
+```
+
+#### Arguments
+
+| Parameter        |        Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------- | :----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sporadicLinesMap | SporadicLineItem[] | The `sporadicLinesMap` is an array of `SporadicLineItem` to tell the reader which lines to get. The `SporadicLineItem` could be any of following three types:<br>1. A number to indiciate a specific line number<br>2. A range specified by the start line number and end line number, like: `{start: 10, end: 15}`<br>3. A range specified by the start line number and the amount of lines to get, like `{start: 20, count: 5}` |
+
+Sample: `reader.getSporadicLines([1, 5, 7, {start: 100, end: 102}, {start: 1000, count: 4}])` will get lines: `1, 5, 7, 100, 111, 112, 1000, 1001, 1002, 1003`.
+
+#### Return value
+Same as `loadFile()` method, `getSporadicLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback, each array item is an object containing two properties: lineNumber and value.
+
+#### Sample
+```javascript
+reader.getSporadicLines([1, {start: 10, count:2}])
+    .then(function(response) {
+        console.log(response.result);
+        /*
+         * The result will be something like:
+         * [
+         *   { lineNumber: 1, value: "string of line 1" },
+         *   { lineNumber: 10, value: "string of line 10" },
+         *   { lineNumber: 11, value: "string of line 11" }
+         * ]
+        */
+    });
+```
+
 ## iterateLines(iteratorConfig[, start, count])
-This method executes a provided function once for each line in the text file or a selected range. Same as `loadFile()`, it is an asynchronous function and returns `TxtReaderTask` where you can use `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+This method iterates all lines or a selected range of a loaded text file. You need to load the file via `loadFile()` before calling this method. Same as `loadFile()`, it is an asynchronous function and returns `TxtReaderTask` where you can use `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
 
 #### Syntax
 ```javascript
@@ -161,12 +212,12 @@ reader.iterateLines({
     eachLine: function(raw, progress, lineNumber) {
         // your iterator
         // raw (Uint8Array): the raw data of current line
-        // progress (Number): a more accurate progress number of the iterating process for current line
-        // lineNumber (Number): the line number of current line
+        // progress (number): a more accurate progress number of the iterating process for current line
+        // lineNumber (number): the line number of current line
         // HOW TO DECODE RAW DATA?
         // You can call "this.decode(raw)" in your iterator to decode the raw data
     },
-    scope: {
+    scope?: {
         // optional
         // You can initialize any properties here and get or set the properties via "this" in the "eachLine" callback.
         // The modified scope will be returned as "response.result" in the "onComplete" callback.
@@ -190,11 +241,49 @@ The `iteratorConfig` takes two properties:
 | eachLine      | Function | The iterator function to execute for each line in the selected range, taking three arguments:<br>__raw__ (Uint8Array): the raw data of current line in Uint8Array format, you can use `this.decode(raw)` in iterator to decode it to readable string.<br>__progress__ (Number): a more accurate progress number of the iterating process for current line<br>__lineNumber__ (Number): the line number of current line |
 | scope         |  Object  | Optional. You can initialize any properties here and get or set the properties via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback.                                                                                                                                                                                                          |
 
+__Note:__ The iterator function will execute in a Web Worker context, it cannot access to your current JavaScript running context where you call this method, so please do not include any object/function reference from current context. You can define any helper method in `eachLine`. If you want to pass in some initial data (string, array, object, number), please define them in `scope` object and access them via `this` in `eachLine` method. 
+
 #### Return value
 Same as `loadFile()` method, `iterateLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
 
+
+## iterateSporadicLines(iteratorConfig, sporadicLinesMap)
+`iterateLines()` method can only iterate continuous lines. `iterateSporadicLines()` allows you to iterate sporadic lines from a loaded text file. You need to load the file via `loadFile()` before calling this method. Similar to `loadFiles()`, this is also an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+
+#### Syntax
+```javascript
+reader.iterateSporadicLines({
+    eachLine: function(raw, progress, lineNumber) {
+        // your iterator
+        // raw (Uint8Array): the raw data of current line
+        // progress (number): a more accurate progress number of the iterating process for current line
+        // lineNumber (number): the line number of current line
+        // HOW TO DECODE RAW DATA?
+        // You can call "this.decode(raw)" in your iterator to decode the raw data
+    },
+    scope?: {
+        // optional
+        // You can initialize any properties here and get or set the properties via "this" in the "eachLine" callback.
+        // The modified scope will be returned as "response.result" in the "onComplete" callback.
+    }
+}, sporadicLinesMap)
+```
+
+#### Arguments
+
+| Parameter        |        Type        | Description                                                                                                                                                                                                                                |
+| ---------------- | :----------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| iteratorConfig   |       Object       | Object to define the iterator method and the `this` scope of the iterator. Same as the `iteratorConfig` in `iterateLines()`. For detailed definition of this object, please check [The `iteratorConfig`](#user-content-the-iteratorconfig) |
+| sporadicLinesMap | SporadicLineItem[] | Same as the `sporadicLinesMap` in  `getSporadicLines()` method, check [Argument -> sporadicLinesMap](#user-content-arguments-2) for details                                                                                                |
+
+#### Return value
+Same as `loadFile()` method, `iterateSporadicLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
+
+
 ## sniffLines(file, lineNumber)
-`getLines()` and `iterateLines()` methods require the file to be loaded via `loadFile()` first since they support get/iterate partial lines from the middle of the file. Sometimes you don't want to load the whole file first but just want to sniff the first few lines of the file. `sniffLines()` method can sniff first given number lines without loading the file (knowing the total line count of the file). Similar to `getLines()`, it is an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+`sniffLines()` method can sniff first given number lines of a text file without loading this file (knowing the total line count of the file). Unlike `getLines()` requires the file to be loaded via `loadFile()` first, `sniffLines()` method does not require the file to be loaded in prior. This method can be used when sometimes you don't want to load the whole file first but just want to sniff the first few lines of the file. Similar to `getLines()`, it is an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
+
+Note: you can call this method on `TxtReader` no matter it already loaded a file or not, the pass in `file` will not be loaded or replace current loaded file in `TxtReader`.
 
 #### Syntax
 ```javascript
@@ -275,6 +364,7 @@ function exectueAfterLoadFileComplete() {
         .catch(function (reason) {
             console.log('Getting lines failed with error: ' + reason);
         });
+
     reader.iterateLines({
         eachLine: function (raw, progress, lineNumber) {
             if (this.decode(raw).indexOf('2018') > -1) {
@@ -293,6 +383,38 @@ function exectueAfterLoadFileComplete() {
         })
         .catch(function (reason) {
             console.log('Iterating lines failed with error: ' + reason);
+        });
+
+    reader.getSporadicLines([1, { start: 10, end: 15 }])
+        .progress(function (progress) {
+            console.log('Getting lines 1, 10~15 progress: ' + progress + '%');
+        })
+        .then(function (response) {
+            console.log('Line 1 is: ' + response.result[0].value);
+            console.log('Line 15 is: ' + response.result[response.result.length - 1].value);
+        })
+        .catch(function (reason) {
+            console.log('Getting lines 1, 10~15 failed with error: ' + reason);
+        });
+
+    reader.iterateSporadicLines({
+        eachLine: function (raw, progress, lineNumber) {
+            if (this.decode(raw).indexOf('2018') > -1) {
+                this.count++;
+            }
+        },
+        scope: {
+            count: 0
+        }
+    }, [1, { start: 10, end: 100 }])
+        .progress(function (progress) {
+            console.log('Getting lines 1, 10~100 progress: ' + progress + '%');
+        })
+        .then(function (response) {
+            console.log(response.result.count + ' lines contain "2018"');
+        })
+        .catch(function (reason) {
+            console.log('Getting lines 1, 10~100 failed with error: ' + reason);
         });
 }
 
