@@ -20,7 +20,7 @@ TxtReader is a JavaScript library to read text file in browsers based on [FileRe
 * [Properties](#user-content-properties)
     * [lineCount](#user-content-linecount)
     * [utf8decoder](#user-content-utf8decoder)
-* [Sample](#user-content-sample)
+* [Sample](#user-content-sample-1)
 * [Browser Compatibility](#user-content-browser-compatibility)
 
 # Installation
@@ -241,7 +241,7 @@ The `iteratorConfig` takes two properties:
 | eachLine      | Function | The iterator function to execute for each line in the selected range, taking three arguments:<br>__raw__ (Uint8Array): the raw data of current line in Uint8Array format, you can use `this.decode(raw)` in iterator to decode it to readable string.<br>__progress__ (Number): a more accurate progress number of the iterating process for current line<br>__lineNumber__ (Number): the line number of current line |
 | scope         |  Object  | Optional. You can initialize any properties here and get or set the properties via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback.                                                                                                                                                                                                          |
 
-__Note:__ The iterator function will execute in a Web Worker context, it cannot access to your current JavaScript running context where you call this method, so please do not include any object/function reference from current context. You can define any helper method in `eachLine`. If you want to pass in some initial data (string, array, object, number), please define them in `scope` object and access them via `this` in `eachLine` method. 
+__Note:__ The iterator function will execute in a Web Worker context, it cannot access your current JavaScript running context where you call this method, so please do not include any object/function reference from current context. You can define any helper method in `eachLine`. If you want to pass in some initial data (string, array, object, number), please define them in `scope` object and access them via `this` in `eachLine` method. 
 
 #### Return value
 Same as `loadFile()` method, `iterateLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
