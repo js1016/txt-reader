@@ -517,7 +517,7 @@ class TxtReaderWorker {
         }
         this.iterator.endOffset = this.file.size;
         if (onNewLineConfig) {
-            this.iterator.bindEachLineFromConfig(onNewLineConfig);
+            this.iterator.bindEachLineFromConfig(this.stringToFunction(onNewLineConfig));
         }
         this.iterateLinesInternal((line: Uint8Array, progress: number) => {
             if (!sniffConfig) {
@@ -532,8 +532,7 @@ class TxtReaderWorker {
                     lineCount: this.lineCount
                 };
                 if (onNewLineConfig) {
-                    delete this.iterator.eachLineScope['decode'];
-                    result.scope = this.iterator.eachLineScope;
+                    result.scope = this.removeFunctionsFromObject(this.iterator.eachLineScope);
                 }
                 respondMessage(new ResponseMessage(result));
             } else {
@@ -581,7 +580,9 @@ class TxtReaderWorker {
         this.iterator.endOffset = this.file.size;
         this.iterator.bindEachLineFromConfig(config);
         this.iterator.onSeekComplete = () => {
-            delete this.iterator.eachLineScope['decode'];
+            if (!this.iterator.sporadicTotal) {
+                this.iterator.eachLineScope = this.removeFunctionsFromObject(this.iterator.eachLineScope);
+            }
             onSeekCompleteFunc();
         }
         if (start !== null && count !== null) {
@@ -590,11 +591,37 @@ class TxtReaderWorker {
             } else {
                 return;
             }
+        } else {
+            this.seek();
         }
     }
 
+    private removeFunctionsFromObject(obj: any) {
+        if (typeof obj === 'object') {
+            for (let i in obj) {
+                if (typeof obj[i] === 'function') {
+                    delete obj[i];
+                } else if (typeof obj[i] === 'object') {
+                    this.removeFunctionsFromObject(obj[i]);
+                }
+            }
+        }
+        return obj;
+    }
+
+    private stringToFunction(config: IIteratorConfigMessage): IIteratorConfigMessage {
+        let functionMap = config.functionMap;
+        if (functionMap.length) {
+            for (let i = 0; i < functionMap.length; i++) {
+                let functionString = eval(`config.scope${functionMap[i]}.toString()`);
+                eval(`config.scope${functionMap[i]}=${functionString}`);
+            }
+        }
+        return config;
+    }
+
     public iterateLines(data: IIterateLinesConfig) {
-        let config: IIteratorConfigMessage = data.config;
+        let config: IIteratorConfigMessage = this.stringToFunction(data.config);
         this._iterateLines(config, data.start, data.count, () => {
             respondMessage(new ResponseMessage(this.iterator.eachLineScope));
         });
@@ -602,6 +629,7 @@ class TxtReaderWorker {
 
     public iterateSporadicLines(config: IIteratorConfigMessage, sporadicLinesMap: SporadicLinesMap) {
         let tempScope: any = null;
+        config = this.stringToFunction(config);
         sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
         let sporadicTotal = 0;
         let processedCount = 0;
@@ -626,8 +654,7 @@ class TxtReaderWorker {
                         process(index + 1);
                     }, 0);
                 } else {
-                    delete tempScope['decode'];
-                    respondMessage(new ResponseMessage(tempScope));
+                    respondMessage(new ResponseMessage(this.removeFunctionsFromObject(tempScope)));
                 }
             });
         }

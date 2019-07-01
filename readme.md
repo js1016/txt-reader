@@ -182,7 +182,7 @@ reader.getSporadicLines(sporadicLinesMap)
 | ---------------- | :----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sporadicLinesMap | SporadicLineItem[] | The `sporadicLinesMap` is an array of `SporadicLineItem` to tell the reader which lines to get. The `SporadicLineItem` could be any of following three types:<br>1. A number to indiciate a specific line number<br>2. A range specified by the start line number and end line number, like: `{start: 10, end: 15}`<br>3. A range specified by the start line number and the amount of lines to get, like `{start: 20, count: 5}` |
 
-Sample: `reader.getSporadicLines([1, 5, 7, {start: 100, end: 102}, {start: 1000, count: 4}])` will get lines: `1, 5, 7, 100, 111, 112, 1000, 1001, 1002, 1003`.
+Sample: `reader.getSporadicLines([1, 5, 7, {start: 100, end: 102}, {start: 1000, count: 4}])` will get lines: `1, 5, 7, 100, 101, 102, 1000, 1001, 1002, 1003`.
 
 #### Return value
 Same as `loadFile()` method, `getSporadicLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback, each array item is an object containing two properties: lineNumber and value.
@@ -219,8 +219,8 @@ reader.iterateLines({
     },
     scope?: {
         // optional
-        // You can initialize any properties here and get or set the properties via "this" in the "eachLine" callback.
-        // The modified scope will be returned as "response.result" in the "onComplete" callback.
+        // You can initialize any properties or methods here and get/set the properties or call the methods via "this" in the "eachLine" callback.
+        // The modified scope will be returned as "response.result" in the "onComplete" callback, the methods will be removed.
     }
 }, start, count)
 ```
@@ -239,9 +239,9 @@ The `iteratorConfig` takes two properties:
 | Property Name |   Type   | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | eachLine      | Function | The iterator function to execute for each line in the selected range, taking three arguments:<br>__raw__ (Uint8Array): the raw data of current line in Uint8Array format, you can use `this.decode(raw)` in iterator to decode it to readable string.<br>__progress__ (Number): a more accurate progress number of the iterating process for current line<br>__lineNumber__ (Number): the line number of current line |
-| scope         |  Object  | Optional. You can initialize any properties here and get or set the properties via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback.                                                                                                                                                                                                          |
+| scope         |  Object  | Optional. You can initialize any properties or methods here and get/set the properties or call the methods via `this` in the `eachLine` callback. The modified scope will be returned as `response.result` in the `onComplete` callback, the methods will be removed.                                                                                                                                                 |
 
-__Note:__ The iterator function will execute in a Web Worker context, it cannot access your current JavaScript running context where you call this method, so please do not include any object/function reference from current context. You can define any helper method in `eachLine`. If you want to pass in some initial data (string, array, object, number), please define them in `scope` object and access them via `this` in `eachLine` method. 
+__Note:__ The iterator function will execute in a Web Worker context, it cannot access your current JavaScript running context where you call this method, so please do not include any object/function reference from current context. You can define any helper methods and initial data in the `scope` and access them via `this` in `eachLine` method. 
 
 #### Return value
 Same as `loadFile()` method, `iterateLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
@@ -263,7 +263,7 @@ reader.iterateSporadicLines({
     },
     scope?: {
         // optional
-        // You can initialize any properties here and get or set the properties via "this" in the "eachLine" callback.
+        // You can initialize any properties or methods here and get/set the properties or call methods via "this" in the "eachLine" callback, the methods will be removed.
         // The modified scope will be returned as "response.result" in the "onComplete" callback.
     }
 }, sporadicLinesMap)
@@ -367,12 +367,15 @@ function exectueAfterLoadFileComplete() {
 
     reader.iterateLines({
         eachLine: function (raw, progress, lineNumber) {
-            if (this.decode(raw).indexOf('2018') > -1) {
+            if (this.contains2018(raw)) {
                 this.count++;
             }
         },
         scope: {
-            count: 0
+            count: 0,
+            contains2018: function(raw) {
+                return this.decode(raw).indexOf('2018') > -1;
+            }
         }
     })
         .progress(function (progress) {
@@ -399,12 +402,15 @@ function exectueAfterLoadFileComplete() {
 
     reader.iterateSporadicLines({
         eachLine: function (raw, progress, lineNumber) {
-            if (this.decode(raw).indexOf('2018') > -1) {
+            if (this.contains2018(raw)) {
                 this.count++;
             }
         },
         scope: {
-            count: 0
+            count: 0,
+            contains2018: function(raw) {
+                return this.decode(raw).indexOf('2018') > -1;
+            }
         }
     }, [1, { start: 10, end: 100 }])
         .progress(function (progress) {

@@ -302,9 +302,26 @@ export class TxtReader {
     }
 
     private getItertorConfigMessage(config: IIteratorConfig): IIteratorConfigMessage {
+        let functionMap: string[] = [];
+        function functionToString(obj: any, entry: string): any {
+            let path = entry;
+            if (typeof obj === 'object') {
+                for (let i in obj) {
+                    let pathi = `${path}["${i}"]`;
+                    if (typeof obj[i] === 'function') {
+                        obj[i] = obj[i].toString();
+                        functionMap.push(pathi);
+                    } else if (typeof obj[i] === 'object') {
+                        obj[i] = functionToString(obj[i], pathi);
+                    }
+                }
+            }
+            return obj;
+        }
         return {
             eachLine: config.eachLine.toString(),
-            scope: config.scope || {}
+            scope: functionToString(config.scope, "") || {},
+            functionMap: functionMap
         };
     }
 

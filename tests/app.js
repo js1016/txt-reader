@@ -46,6 +46,7 @@ $('#load-file').click(function () {
     txtReader.loadFile(iisLogFile).progress(function (progress) {
         log('Loading file progress: ' + progress + '%.');
     }).then(function (response) {
+        console.log(response);
         success('Load file (' + this.file.name + ') successfully, time taken: ' + response.timeTaken + 'ms.');
         hideRunning();
     }).catch(function (reason) {
@@ -110,7 +111,10 @@ $('#iterate-lines').click(function () {
         scope: {
             lineCount: 0,
             first: null,
-            last: null
+            last: null,
+            test: function (raw) {
+
+            }
         }
     }, start, count).progress(function (progress) {
         log('Iterating lines progress: ' + progress + '%.');

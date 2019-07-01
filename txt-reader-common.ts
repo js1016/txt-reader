@@ -15,6 +15,7 @@ export interface IResponseMessage {
 export interface IIteratorConfigMessage {
     eachLine: string;
     scope: object;
+    functionMap: string[];
 }
 export interface IGetSporadicLinesResult {
     lineNumber: number;
