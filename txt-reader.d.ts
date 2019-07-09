@@ -46,9 +46,13 @@ declare namespace TxtReaderLib {
         [key: string]: any;
     }
 
+    interface IIteratorScope {
+        [key: string]: any;
+    }
+
     interface IIteratorConfig {
         eachLine: (this: IIteratorEachLineThis, raw: Uint8Array, progress: number, lineNumber: number) => void;
-        scope?: object;
+        scope?: IIteratorScope;
     }
 
     interface ILinesRange {

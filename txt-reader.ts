@@ -43,9 +43,13 @@ interface IResponseMessageEvent extends MessageEvent {
     data: IResponseMessage;
 }
 
-interface IIteratorConfig {
+interface IIteratorScope {
+    [key: string]: any;
+}
+
+export interface IIteratorConfig {
     eachLine: (this: IIteratorEachLineThis, raw: Uint8Array, progress: number, lineNumber: number) => void;
-    scope?: object;
+    scope?: IIteratorScope;
 }
 
 interface IIteratorEachLineThis {
