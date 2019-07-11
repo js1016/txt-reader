@@ -15,11 +15,11 @@ interface ILoadFileTaskResponse extends ITaskResponse {
 }
 
 interface ISniffLinesTaskResponse extends ITaskResponse {
-    result: string[];
+    result: (string | Uint8Array)[];
 }
 
 interface IGetLinesTaskResponse extends ITaskResponse {
-    result: string[];
+    result: (string | Uint8Array)[];
 }
 
 interface IGetSporadicLinesTaskResponse extends ITaskResponse {
@@ -242,10 +242,11 @@ export class TxtReader {
         }, false);
     }
 
-    public sniffLines(file: File, lineNumber: number): TxtReaderTask<ISniffLinesTaskResponse> {
+    public sniffLines(file: File, lineNumber: number, decode: boolean = true): TxtReaderTask<ISniffLinesTaskResponse> {
         return this.newTask<ISniffLinesTaskResponse>('sniffLines', {
             file: file,
-            lineNumber: lineNumber
+            lineNumber: lineNumber,
+            decode: decode
         });
     }
 
@@ -278,16 +279,21 @@ export class TxtReader {
         return this.newTask('enableVerbose');
     }
 
-    public getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse> {
+    public getLines(start: number, count: number, decode: boolean = true): TxtReaderTask<IGetLinesTaskResponse> {
         return this.newTask<IGetLinesTaskResponse>('getLines', { start: start, count: count }).then((response) => {
             for (let i = 0; i < response.result.length; i++) {
-                response.result[i] = this.utf8decoder.decode(response.result[i] as any as Uint8Array);
+                if (decode) {
+                    response.result[i] = this.utf8decoder.decode(response.result[i] as any as Uint8Array);
+                }
             }
         });
     }
 
-    public getSporadicLines(sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IGetSporadicLinesTaskResponse> {
-        return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', sporadicLinesMap);
+    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
+        return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', {
+            sporadicLinesMap: sporadicLinesMap,
+            decode: decode
+        });
     }
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {

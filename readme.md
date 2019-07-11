@@ -122,13 +122,13 @@ interface ITaskResponse {
 
 Appends an `onFail` handler to the `TxtReaderTask` and returns the `TxtReaderTask`.
 
-## getLines(start, count)
+## getLines(start, count[, decode])
 Get specific lines from a loaded text file. You need to load the file via `loadFile()` before calling this method. Similar to `TxtParser.loadFile(file[ ,iteratorConfig])`, this is also an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
 
 #### Syntax
 
 ```javascript
-reader.getLines(start, count)
+reader.getLines(start, count, decode)
 .progress(function(progress) {
     // onProgress callback
     // progress (number): task progress in Number value from 1-100
@@ -136,7 +136,7 @@ reader.getLines(start, count)
 .then(function(response) {
     // onComplete callback
     // response.timeTaken (number): task time taken in millisecond
-    // response.result (string[]): lines collection in string array
+    // response.result (string[] or Uint8Array[]): lines collection in string array if decode is true or Uint8Array array if decode is false
 })
 .catch(function(reason) {
     // onFail callback
@@ -146,21 +146,22 @@ reader.getLines(start, count)
 
 #### Arguments
 
-| Parameter |  Type  | Description                                                         |
-| --------- | :----: | ------------------------------------------------------------------- |
-| start     | Number | The line number of the first line to include in the returned array. |
-| count     | Number | The amount of lines to get.                                         |
+| Parameter |  Type   | Description                                                         |
+| --------- | :-----: | ------------------------------------------------------------------- |
+| start     | Number  | The line number of the first line to include in the returned array. |
+| count     | Number  | The amount of lines to get.                                         |
+| decode    | Boolean | Optional. Default value: true. Whether decode each line to string.  |
 
 #### Return value
 Same as `loadFile()` method, `getLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback.
 
-## getSporadicLines(sporadicLinesMap)
+## getSporadicLines(sporadicLinesMap[, decode])
 `getLine()` method can only get continuous lines. `getSporadicLines()` allows you to get sporadic lines from a loaded text file. You need to load the file via `loadFile()` before calling this method. Similar to `loadFile()`, this is also an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
 
 #### Syntax
 
 ```javascript
-reader.getSporadicLines(sporadicLinesMap)
+reader.getSporadicLines(sporadicLinesMap, decode)
     .progress(function (progress) {
         // onProgress callback
         // progress (number): task progress in Number value from 1-100
@@ -168,7 +169,7 @@ reader.getSporadicLines(sporadicLinesMap)
     .then(function (response) {
         // onComplete callback
         // response.timeTaken (number): task time taken in millisecond
-        // response.result ({lineNumber: number, value: string}[]): lines collection in array, each item is an object containing two properties: lineNumber and value
+        // response.result ({lineNumber: number, value: string | Uint8Array}[]): lines collection in array, each item is an object containing two properties: lineNumber and value
     })
     .catch(function (reason) {
         // onFail callback
@@ -181,6 +182,7 @@ reader.getSporadicLines(sporadicLinesMap)
 | Parameter        |        Type        | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ---------------- | :----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sporadicLinesMap | SporadicLineItem[] | The `sporadicLinesMap` is an array of `SporadicLineItem` to tell the reader which lines to get. The `SporadicLineItem` could be any of following three types:<br>1. A number to indiciate a specific line number<br>2. A range specified by the start line number and end line number, like: `{start: 10, end: 15}`<br>3. A range specified by the start line number and the amount of lines to get, like `{start: 20, count: 5}` |
+| decode           |      Boolean       | Optional. Default value: true. Whether decode each line to string.                                                                                                                                                                                                                                                                                                                                                                |
 
 Sample: `reader.getSporadicLines([1, 5, 7, {start: 100, end: 102}, {start: 1000, count: 4}])` will get lines: `1, 5, 7, 100, 101, 102, 1000, 1001, 1002, 1003`.
 
@@ -280,14 +282,14 @@ reader.iterateSporadicLines({
 Same as `loadFile()` method, `iterateSporadicLines()` also returns an instance of `TxtReaderTask`. You can predefine any properties in `scope` and access the `scope` from `this` context in your iterator, the `scope` will finally be returned as `response.result` in the `onComplete` callback.
 
 
-## sniffLines(file, lineNumber)
+## sniffLines(file, lineNumber[, decode])
 `sniffLines()` method can sniff first given number lines of a text file without loading this file (knowing the total line count of the file). Unlike `getLines()` requires the file to be loaded via `loadFile()` first, `sniffLines()` method does not require the file to be loaded in prior. This method can be used when sometimes you don't want to load the whole file first but just want to sniff the first few lines of the file. Similar to `getLines()`, it is an asynchronous function and returns `TxtReaderTask` where you can chain `.progress()`, `.then()` and `.catch()` to get the task running progress and result.
 
 Note: you can call this method on `TxtReader` no matter it already loaded a file or not, the pass in `file` will not be loaded or replace current loaded file in `TxtReader`.
 
 #### Syntax
 ```javascript
-reader.sniffLines(file, lineNumber)
+reader.sniffLines(file, lineNumber, decode)
 .progress(function(progress) {
     // onProgress callback
     // progress (Number): task progress in Number value from 1-100
@@ -295,7 +297,7 @@ reader.sniffLines(file, lineNumber)
 .then(function(resposne) {
     // onComplete callback
     // resposne.timeTaken (Number): task time taken in millisecond
-    // response.result (Array[String]): sniffed lines collection in string array
+    // response.result (string[] or Uint8Array[]): sniffed lines collection in string array if decode is true or Uint8Array array if decode is false
 })
 .catch(function(reason) {
     // onFail callback
@@ -305,10 +307,11 @@ reader.sniffLines(file, lineNumber)
 
 #### Arguments
 
-| Parameter  |  Type  | Description                                                                                                                               |
-| ---------- | :----: | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| file       |  File  | The text file to be sniffed, only supports __UTF-8__ encoding                                                                             |
-| lineNumber | Number | How many lines to sniff. If you specify a number larger than the actual line count of the file, it will return all the lines of the file. |
+| Parameter  |  Type   | Description                                                                                                                               |
+| ---------- | :-----: | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| file       |  File   | The text file to be sniffed, only supports __UTF-8__ encoding                                                                             |
+| lineNumber | Number  | How many lines to sniff. If you specify a number larger than the actual line count of the file, it will return all the lines of the file. |
+| decode     | Boolean | Optional. Default value: true. Whether decode each line to string.                                                                        |
 
 #### Return value
 Same as `loadFile()` method, `sniffLines()` also returns an instance of `TxtReaderTask`. The results can be retrieved from `response.result` as an array in the `onComplete` callback.

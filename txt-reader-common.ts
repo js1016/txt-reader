@@ -19,7 +19,7 @@ export interface IIteratorConfigMessage {
 }
 export interface IGetSporadicLinesResult {
     lineNumber: number;
-    value: string;
+    value: string | Uint8Array;
 }
 
 interface ILinesRange {

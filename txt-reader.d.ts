@@ -14,7 +14,7 @@ declare namespace TxtReaderLib {
 
     interface IGetSporadicLinesResult {
         lineNumber: number;
-        value: string;
+        value: string | Uint8Array;
     }
 
     interface ILoadFileTaskResponse extends ITaskResponse {
@@ -22,11 +22,11 @@ declare namespace TxtReaderLib {
     }
 
     interface IGetLinesTaskResponse extends ITaskResponse {
-        result: string[];
+        result: (string | Uint8Array)[];
     }
 
     interface ISniffLinesTaskResponse extends ITaskResponse {
-        result: string[];
+        result: (string | Uint8Array)[];
     }
 
     interface ISetChunkSizeResponse extends ITaskResponse {
@@ -87,10 +87,10 @@ declare namespace TxtReaderLib {
         lineCount: number;
         utf8decoder: TextDecoder_Instance;
         loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse>;
-        getLines(start: number, count: number): TxtReaderTask<IGetLinesTaskResponse>;
+        getLines(start: number, count: number, decode: boolean): TxtReaderTask<IGetLinesTaskResponse>;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;
-        sniffLines(file: File, lineNumber: number): TxtReaderTask<ISniffLinesTaskResponse>;
-        getSporadicLines(sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IGetSporadicLinesTaskResponse>;
+        sniffLines(file: File, lineNumber: number, decode: boolean): TxtReaderTask<ISniffLinesTaskResponse>;
+        getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean): TxtReaderTask<IGetSporadicLinesTaskResponse>;
         iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse>;
     }
 

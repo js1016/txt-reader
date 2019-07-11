@@ -15,6 +15,7 @@ interface IIterateLinesConfig {
 
 interface ISniffConfig {
     lineNumber: number;
+    decode: boolean;
 }
 
 const utf8decoder = new TextDecoder('utf-8');
@@ -138,7 +139,7 @@ self.addEventListener('message', (event: MessageEvent) => {
             break;
         case 'getSporadicLines':
             if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data);
+                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.sporadicLinesMap, req.data.decode);
             }
             break;
         case 'iterateLines':
@@ -153,7 +154,8 @@ self.addEventListener('message', (event: MessageEvent) => {
             break;
         case 'sniffLines':
             sniffWorker = new TxtReaderWorker(req.data.file, undefined, {
-                lineNumber: req.data.lineNumber
+                lineNumber: req.data.lineNumber,
+                decode: req.data.decode
             });
             break;
     }
@@ -367,7 +369,7 @@ class TxtReaderWorker {
     private quickSearchMap!: ILinePosition[];
     private iterator!: Iterator;
     private lineCount!: number;
-    private sniffLines!: string[];
+    private sniffLines!: (string | Uint8Array)[];
 
     constructor(file: File, onNewLineConfig?: IIteratorConfigMessage, sniffConfig?: ISniffConfig) {
         if (Object.prototype.toString.call(file).toLowerCase() !== '[object file]') {
@@ -523,7 +525,7 @@ class TxtReaderWorker {
             if (!sniffConfig) {
                 this.lineCount++;
             } else {
-                this.sniffLines.push(utf8decoder.decode(line));
+                this.sniffLines.push(sniffConfig.decode ? utf8decoder.decode(line) : line);
             }
         }, () => {
             if (!sniffConfig) {
@@ -708,7 +710,7 @@ class TxtReaderWorker {
         });
     }
 
-    public getSporadicLines(sporadicLinesMap: SporadicLinesMap) {
+    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean) {
         sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
         let sporadicTotal = 0;
         for (let i = 0; i < sporadicLinesMap.length; i++) {
@@ -728,7 +730,7 @@ class TxtReaderWorker {
                 for (let i = 0; i < lines.length; i++) {
                     result.push({
                         lineNumber: item.start + i,
-                        value: utf8decoder.decode(lines[i])
+                        value: decode ? utf8decoder.decode(lines[i]) : lines[i]
                     });
                 }
                 if (index < sporadicLinesMap.length - 1) {
