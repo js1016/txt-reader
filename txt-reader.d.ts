@@ -87,10 +87,10 @@ declare namespace TxtReaderLib {
         lineCount: number;
         utf8decoder: TextDecoder_Instance;
         loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse>;
-        getLines(start: number, count: number, decode: boolean): TxtReaderTask<IGetLinesTaskResponse>;
+        getLines(start: number, count: number, decode?: boolean): TxtReaderTask<IGetLinesTaskResponse>;
         iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse>;
-        sniffLines(file: File, lineNumber: number, decode: boolean): TxtReaderTask<ISniffLinesTaskResponse>;
-        getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean): TxtReaderTask<IGetSporadicLinesTaskResponse>;
+        sniffLines(file: File, lineNumber: number, decode?: boolean): TxtReaderTask<ISniffLinesTaskResponse>;
+        getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode?: boolean): TxtReaderTask<IGetSporadicLinesTaskResponse>;
         iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse>;
     }
 
