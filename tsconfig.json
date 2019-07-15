@@ -11,6 +11,7 @@
             "es5",
             "dom",
             "webworker"
-        ]
+        ],
+        "esModuleInterop": true
     }
 }

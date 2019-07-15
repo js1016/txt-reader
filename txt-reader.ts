@@ -2,7 +2,8 @@ import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, SporadicLinesMap, IGetSporadicLinesResult } from './txt-reader-common'
-import { TextDecoder_Instance } from 'text-encoding-shim';
+import { TextDecoder_Instance } from 'text-encoding-shim'
+import cloneDeep from "lodash.clonedeep"
 
 interface ITaskResponse {
     timeTaken: number;
@@ -260,7 +261,7 @@ export class TxtReader {
             file: file
         };
         if (config) {
-            data.config = this.getItertorConfigMessage(config);
+            data.config = this.getItertorConfigMessage(cloneDeep(config));
         }
         return this.newTask<ILoadFileTaskResponse>('loadFile', data).then((response) => {
             Object.defineProperty(this, 'lineCount', {
@@ -298,7 +299,7 @@ export class TxtReader {
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
         return this.newTask<IIterateLinesTaskResponse>('iterateLines', {
-            config: this.getItertorConfigMessage(config),
+            config: this.getItertorConfigMessage(cloneDeep(config)),
             start: start || null,
             count: count || null
         });
@@ -306,7 +307,7 @@ export class TxtReader {
 
     public iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse> {
         return this.newTask<IIterateLinesTaskResponse>('iterateSporadicLines', {
-            config: this.getItertorConfigMessage(config),
+            config: this.getItertorConfigMessage(cloneDeep(config)),
             lines: sporadicLinesMap
         });
     }
