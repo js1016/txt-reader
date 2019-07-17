@@ -86,6 +86,10 @@ let getLinesRangeCount = (linesRange: LinesRange): number => {
     return linesRange.count !== undefined ? linesRange.count : linesRange.end - linesRange.start + 1;
 }
 
+let getLinesRangeStart = (lineItem: SporadicLineItem): number => {
+    return typeof lineItem === 'number' ? lineItem : lineItem.start;
+}
+
 let getStartCountForSporadicLineItem = (item: SporadicLineItem): { start: number, count: number } => {
     if (typeof item === 'number') {
         return {
@@ -207,10 +211,10 @@ class Iterator {
 
     // onEachLine callback function for internal methods
     // internal methods like: loadFile, getLines have their own onEachLine callback
-    public onEachLineInternal: Function | null;
+    public onEachLineInternal!: (this: Iterator, lineDate: Uint8Array) => void;
 
     // onSeekComplete callback function
-    public onSeekComplete: Function | null;
+    public onSeekComplete!: (this: Iterator) => void;
 
     // external onEachLine callback function
     private onEachLine: Function | null;
@@ -239,11 +243,12 @@ class Iterator {
     // start line number that we need to get
     public startLineNumber: number;
 
-    // total line number of sporadicLinesMap
-    public sporadicTotal: number;
-
     // processed sporadic lines
     public sporadicProcessed: number;
+
+    public sporadicLinesMap: SporadicLinesMap;
+
+    public isSporadicIterate: boolean;
 
     private processedViewLength: number;
 
@@ -259,10 +264,8 @@ class Iterator {
     constructor() {
         this.lineView = new Uint8Array(0);
         this.lastViewEndsWithCR = false;
-        this.onEachLineInternal = null;
         this.onEachLine = null;
         this.eachLineScope = null;
-        this.onSeekComplete = null;
         this.offset = 0;
         this.createMap = false;
         this.endOffset = 0;
@@ -276,11 +279,12 @@ class Iterator {
         this.map = [];
         this.lastMappedProgress = null;
         this.sporadicProcessed = 0;
-        this.sporadicTotal = 0;
+        this.sporadicLinesMap = [];
+        this.isSporadicIterate = false;
     }
 
     public shouldBreak(): boolean {
-        if (this.isPartialIterate() && this.linesProcessed === this.linesToIterate) {
+        if (this.isPartialIterate() && (this.linesProcessed === this.linesToIterate || this.sporadicProcessed === this.linesToIterate)) {
             return true;
         } else {
             return false;
@@ -288,6 +292,7 @@ class Iterator {
     }
 
     public isPartialIterate(): boolean {
+        // is partial iterate or is sporadic iterate
         return this.linesToIterate > 0;
     }
 
@@ -295,35 +300,76 @@ class Iterator {
         let isPartialIterate: boolean = this.isPartialIterate();
         let progress = 0;
         if (!isPartialIterate ||
-            (isPartialIterate && this.currentLineNumber >= this.startLineNumber)) {
-            this.linesProcessed++;
+            (isPartialIterate && this.currentLineNumber >= this.startLineNumber && !this.isSporadicIterate) ||
+            this.isSporadicIterate) {
+            // complete iterate
+            // continuous partial iterate and within range
+            // sporadic iterate
+            let match = false;
             if (isPartialIterate) {
-                if (this.sporadicTotal === 0) {
+                if (!this.isSporadicIterate) {
+                    this.linesProcessed++;
+                    match = true;
                     progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
                 } else {
-                    progress = Math.round((this.sporadicProcessed + this.linesProcessed) / this.sporadicTotal * 10000) / 100;
+                    progress = Math.round(this.sporadicProcessed / this.linesToIterate * 10000) / 100;
+                    let first = this.sporadicLinesMap[0];
+                    if (typeof first === 'number') {
+                        if (first === this.currentLineNumber) {
+                            this.sporadicLinesMap.splice(0, 1);
+                            match = true;
+                        }
+                    } else {
+                        if (first.count !== undefined) {
+                            if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.start + first.count - 1) {
+                                // within range
+                                if (first.count === 1) {
+                                    this.sporadicLinesMap.splice(0, 1);
+                                } else {
+                                    first.start++;
+                                    first.count--;
+                                }
+                                match = true;
+                            }
+                        } else {
+                            if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.end) {
+                                // within range
+                                if (first.start === first.end) {
+                                    this.sporadicLinesMap.splice(0, 1);
+                                } else {
+                                    first.start++;
+                                }
+                                match = true;
+                            }
+                        }
+                    }
+                    if (match) {
+                        this.sporadicProcessed++;
+                    }
                 }
             } else {
+                match = true;
+                this.linesProcessed++;
                 progress = Math.round(this.processedViewLength / this.endOffset * 10000) / 100;
-            }
-            if (this.createMap) {
-                let currentProgress: number = Math.round(progress);
-                if (this.lastMappedProgress === null ||
-                    this.lastMappedProgress < currentProgress) {
-                    this.lastMappedProgress = currentProgress;
-                    this.map.push({
-                        line: this.currentLineNumber,
-                        offset: this.processedViewLength
-                    });
+                if (this.createMap) {
+                    let currentProgress: number = Math.round(progress);
+                    if (this.lastMappedProgress === null ||
+                        this.lastMappedProgress < currentProgress) {
+                        this.lastMappedProgress = currentProgress;
+                        this.map.push({
+                            line: this.currentLineNumber,
+                            offset: this.processedViewLength
+                        });
+                    }
                 }
             }
-            if (this.onEachLineInternal !== null) {
+            if (this.onEachLineInternal && match) {
                 if (lineData.buffer.byteLength != lineData.byteLength) {
                     lineData = new Uint8Array(lineData);
                 }
-                this.onEachLineInternal.call(self, lineData, progress);
+                this.onEachLineInternal.call(this, lineData);
             }
-            if (this.onEachLine !== null) {
+            if (this.onEachLine !== null && match) {
                 if (lineData.buffer.byteLength != lineData.byteLength) {
                     lineData = new Uint8Array(lineData);
                 }
@@ -506,9 +552,13 @@ class TxtReaderWorker {
                 respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
             }
 
-            iterator.offset += this.CHUNK_SIZE;
             iterator.lineBreakLength = 0;
-            this.seek();
+            if (this.iterator.isSporadicIterate) {
+                this.seekSporadic();
+            } else {
+                iterator.offset += this.CHUNK_SIZE;
+                this.seek();
+            }
         };
         this.iterator = new Iterator();
         this.iterator.createMap = true;
@@ -521,7 +571,7 @@ class TxtReaderWorker {
         if (onNewLineConfig) {
             this.iterator.bindEachLineFromConfig(this.stringToFunction(onNewLineConfig));
         }
-        this.iterateLinesInternal((line: Uint8Array, progress: number) => {
+        this.iterateLinesInternal((line: Uint8Array) => {
             if (!sniffConfig) {
                 this.lineCount++;
             } else {
@@ -571,21 +621,22 @@ class TxtReaderWorker {
         }
     }
 
-    private iterateLinesInternal(onNewLineFunc: Function, onSeekCompleteFunc?: Function) {
+    private iterateLinesInternal(onNewLineFunc: (this: Iterator, lineDate: Uint8Array) => void, onSeekComplete?: (this: Iterator) => void) {
         this.iterator.onEachLineInternal = onNewLineFunc;
-        this.iterator.onSeekComplete = onSeekCompleteFunc || null;
+        if (onSeekComplete) {
+            this.iterator.onSeekComplete = onSeekComplete;
+        }
         this.seek();
     }
 
-    private _iterateLines(config: IIteratorConfigMessage, start: number | null, count: number | null, onSeekCompleteFunc: () => void) {
+    private _iterateLines(config: IIteratorConfigMessage, start: number | null, count: number | null, onSeekComplete: () => void) {
+        let _this = this;
         this.iterator.offset = 0;
         this.iterator.endOffset = this.file.size;
         this.iterator.bindEachLineFromConfig(config);
-        this.iterator.onSeekComplete = () => {
-            if (!this.iterator.sporadicTotal) {
-                this.iterator.eachLineScope = this.removeFunctionsFromObject(this.iterator.eachLineScope);
-            }
-            onSeekCompleteFunc();
+        this.iterator.onSeekComplete = function () {
+            this.eachLineScope = _this.removeFunctionsFromObject(this.eachLineScope);
+            onSeekComplete();
         }
         if (start !== null && count !== null) {
             if (this.setPartialIterator(start, count)) {
@@ -629,12 +680,9 @@ class TxtReaderWorker {
         });
     }
 
-    public iterateSporadicLines(config: IIteratorConfigMessage, sporadicLinesMap: SporadicLinesMap) {
-        let tempScope: any = null;
-        config = this.stringToFunction(config);
+    public setSporadicIterator(sporadicLinesMap: SporadicLinesMap) {
         sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
         let sporadicTotal = 0;
-        let processedCount = 0;
         for (let i = 0; i < sporadicLinesMap.length; i++) {
             if (typeof sporadicLinesMap[i] === 'number') {
                 sporadicTotal++;
@@ -642,44 +690,100 @@ class TxtReaderWorker {
                 sporadicTotal += getLinesRangeCount(<LinesRange>sporadicLinesMap[i]);
             }
         }
-        let process = (index: number) => {
-            let item = getStartCountForSporadicLineItem(sporadicLinesMap[index]);
-            this.iterator.sporadicTotal = sporadicTotal;
-            this.iterator.sporadicProcessed = processedCount;
-            this.iterator.lastProgress = Math.round(processedCount / sporadicTotal * 10000) / 100;
-            this.iterator.eachLineScope = tempScope;
-            this._iterateLines(config, item.start, item.count, () => {
-                processedCount += item.count;
-                tempScope = this.iterator.eachLineScope;
-                if (index < sporadicLinesMap.length - 1) {
-                    setTimeout(() => {
-                        process(index + 1);
-                    }, 0);
-                } else {
-                    respondMessage(new ResponseMessage(this.removeFunctionsFromObject(tempScope)));
-                }
+        this.iterator.linesToIterate = sporadicTotal;
+        this.iterator.endOffset = this.file.size;
+        this.iterator.isSporadicIterate = true;
+        this.iterator.sporadicLinesMap = sporadicLinesMap;
+        this.seekSporadic();
+    }
+
+    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean) {
+        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+        let result: IGetSporadicLinesResult[] = [];
+        this.iterator.onEachLineInternal = function (line: Uint8Array) {
+            result.push({
+                lineNumber: this.currentLineNumber,
+                value: decode ? utf8decoder.decode(line) : line
             });
+        };
+        this.iterator.onSeekComplete = function () {
+            respondMessage(new ResponseMessage(result));
         }
-        process(0);
+        this.setSporadicIterator(sporadicLinesMap);
+    }
+
+    public iterateSporadicLines(config: IIteratorConfigMessage, sporadicLinesMap: SporadicLinesMap) {
+        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+        config = this.stringToFunction(config);
+        let _this = this;
+        this.iterator.bindEachLineFromConfig(config);
+        this.iterator.onSeekComplete = function () {
+            this.eachLineScope = _this.removeFunctionsFromObject(this.eachLineScope);
+            respondMessage(new ResponseMessage(this.eachLineScope));
+        }
+        this.setSporadicIterator(sporadicLinesMap);
     }
 
     private seek() {
         let finishDueToLinesToIterateReached: boolean = this.iterator.linesToIterate > 0 && this.iterator.linesProcessed === this.iterator.linesToIterate
         if (this.iterator.offset >= this.iterator.endOffset || finishDueToLinesToIterateReached) {
-            if (this.iterator.sporadicTotal === 0 || this.iterator.sporadicProcessed + this.iterator.linesProcessed === this.iterator.sporadicTotal) {
-                respondMessage(createProgressResponseMessage(100));
-            }
+            respondMessage(createProgressResponseMessage(100));
             if (this.iterator.lineView.byteLength && !finishDueToLinesToIterateReached) {
                 this.iterator.hitLine(this.iterator.lineView);
                 this.iterator.lineView = new Uint8Array(0);
             }
-            if (this.iterator.onSeekComplete !== null) {
-                this.iterator.onSeekComplete.call(self);
+            if (this.iterator.onSeekComplete) {
+                this.iterator.onSeekComplete.call(this.iterator);
             }
             this.iterator = new Iterator();
         } else {
             let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + this.CHUNK_SIZE);
             this.fr.readAsArrayBuffer(slice);
+        }
+    }
+
+    private seekSporadic() {
+        if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
+            complete.call(this);
+        } else {
+            let first = this.iterator.sporadicLinesMap[0];
+            let start = getLinesRangeStart(first);
+            if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
+                this.iterator.offset += this.CHUNK_SIZE;
+                if (this.iterator.offset >= this.iterator.endOffset) {
+                    this.iterator.hitLine(this.iterator.lineView);
+                    this.iterator.lineView = new Uint8Array(0);
+                    if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
+                        complete.call(this);
+                    }
+                } else {
+                    let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + this.CHUNK_SIZE);
+                    this.fr.readAsArrayBuffer(slice);
+                    return;
+                }
+            } else if (this.iterator.sporadicLinesMap.length > 0) {
+                for (let i = 0; i < this.quickSearchMap.length; i++) {
+                    let mapStart = this.quickSearchMap[i].line;
+                    let mapEnd = i === this.quickSearchMap.length - 1 ? this.lineCount : this.quickSearchMap[i + 1].line - 1;
+                    if (start >= mapStart && start <= mapEnd) {
+                        let offset = this.quickSearchMap[i].offset;
+                        this.iterator.offset = offset;
+                        let slice: Blob = this.file.slice(offset, offset + this.CHUNK_SIZE);
+                        this.iterator.currentLineNumber = this.quickSearchMap[i].line;
+                        this.fr.readAsArrayBuffer(slice);
+                        return;
+                    }
+                }
+                // out of range
+                complete.call(this);
+            }
+        }
+
+        function complete(this: TxtReaderWorker) {
+            respondMessage(createProgressResponseMessage(100));
+            if (this.iterator.onSeekComplete) {
+                this.iterator.onSeekComplete.call(this.iterator);
+            }
         }
     }
 
@@ -708,39 +812,6 @@ class TxtReaderWorker {
                 respondMessage(new ResponseMessage(lines));
             }
         });
-    }
-
-    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean) {
-        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
-        let sporadicTotal = 0;
-        for (let i = 0; i < sporadicLinesMap.length; i++) {
-            if (typeof sporadicLinesMap[i] === 'number') {
-                sporadicTotal++;
-            } else {
-                sporadicTotal += getLinesRangeCount(<LinesRange>sporadicLinesMap[i]);
-            }
-        }
-        let result: IGetSporadicLinesResult[] = [];
-        let process = (index: number) => {
-            let item = getStartCountForSporadicLineItem(sporadicLinesMap[index]);
-            this.iterator.sporadicTotal = sporadicTotal;
-            this.iterator.sporadicProcessed = result.length;
-            this.iterator.lastProgress = Math.round(result.length / sporadicTotal * 10000) / 100;
-            this._getLines(item.start, item.count, lines => {
-                for (let i = 0; i < lines.length; i++) {
-                    result.push({
-                        lineNumber: item.start + i,
-                        value: decode ? utf8decoder.decode(lines[i]) : lines[i]
-                    });
-                }
-                if (index < sporadicLinesMap.length - 1) {
-                    process(index + 1);
-                } else {
-                    respondMessage(new ResponseMessage(result));
-                }
-            });
-        }
-        process(0);
     }
 
     private sortAndMergeLineMap(lineMap: SporadicLinesMap): SporadicLinesMap {
