@@ -101,20 +101,21 @@ $('#iterate-lines').click(function () {
     var start = Number($('#start-line').val()) || null;
     var count = Number($('#count').val()) || null;
     txtReader.iterateLines({
-        eachLine: function (value) {
-            if (this.first === null) {
+        eachLine: function (value, progress, lineNumber) {
+            if (lineNumber === this.start) {
                 this.first = this.decode(value);
             }
-            this.last = this.decode(value);
+            if (lineNumber === this.end) {
+                this.last = this.decode(value);
+            }
             this.lineCount++;
         },
         scope: {
             lineCount: 0,
+            start: start,
+            end: start + count - 1,
             first: null,
-            last: null,
-            test: function (raw) {
-
-            }
+            last: null
         }
     }, start, count).progress(function (progress) {
         log('Iterating lines progress: ' + progress + '%.');

@@ -784,6 +784,7 @@ class TxtReaderWorker {
             if (this.iterator.onSeekComplete) {
                 this.iterator.onSeekComplete.call(this.iterator);
             }
+            this.iterator = new Iterator();
         }
     }
 
