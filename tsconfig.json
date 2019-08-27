@@ -13,5 +13,8 @@
             "webworker"
         ],
         "esModuleInterop": true
-    }
+    },
+    "include": [
+        "./test/**/*"
+    ]
 }
