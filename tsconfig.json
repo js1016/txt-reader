@@ -12,7 +12,8 @@
             "dom",
             "webworker"
         ],
-        "esModuleInterop": true
+        "esModuleInterop": true,
+        "experimentalDecorators": true
     },
     "include": [
         "./test/**/*"

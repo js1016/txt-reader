@@ -1,5 +1,4 @@
-import Vue from "vue";
-import App from './app.vue';
+
 import { TxtReader } from "../txt-reader";
 
 declare global {
@@ -8,6 +7,10 @@ declare global {
     }
 }
 
+window.txtReader = new TxtReader();
+
+import Vue from "vue";
+import App from './app.vue';
 let app = new Vue({
     el: "#app",
     template: '<App/>',
@@ -16,4 +19,3 @@ let app = new Vue({
     }
 });
 
-window.txtReader = new TxtReader();
