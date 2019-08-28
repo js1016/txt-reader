@@ -3,4 +3,5 @@ selenium-debug.log
 selenium-server.log
 tests/reports/
 tests/dist/
+test/dist/
 txt-reader-worker.js

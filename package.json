@@ -12,8 +12,8 @@
     "build-test": "webpack --config webpack.test.js",
     "_dev-server": "webpack-dev-server --config webpack.test.js",
     "dev": "concurrently --kill-others \"npm run _build-watch\" \"npm run _dev-server\"",
-    "test2": "webpack --config webpack.config.js",
-    "start":"webpack-dev-server"
+    "test2": "webpack --config webpack.test2.js",
+    "start": "webpack-dev-server --config webpack.test2.js"
   },
   "keywords": [
     "text",

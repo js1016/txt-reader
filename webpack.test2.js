@@ -1,12 +1,17 @@
 const path = require('path');
 const { VueLoaderPlugin } = require('vue-loader');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const WorkerInlinifyWebpackPlugin = require('worker-inlinify-webpack-plugin');
 
 module.exports = {
-    entry: './test/index.ts',
+    entry: {
+        index: './test/index.ts',
+        'txt-reader-worker': './txt-reader-worker.ts'
+    },
     output: {
         path: path.resolve(__dirname, './test/dist'),
-        filename: 'build.js'
+        filename: '[name].js'
     },
     module: {
         rules: [
@@ -56,9 +61,12 @@ module.exports = {
     },
     devtool: '#eval-source-map',
     plugins: [
+        new CleanWebpackPlugin(),
         new VueLoaderPlugin(),
+        new WorkerInlinifyWebpackPlugin(),
         new HtmlWebpackPlugin({
-            template: './test/index.html'
+            template: './test/index.html',
+            chunks: ['index']
         })
     ],
     mode: 'development'
