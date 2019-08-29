@@ -1,7 +1,10 @@
 node_modules/
 selenium-debug.log
 selenium-server.log
+chromedriver.log
 tests/reports/
 tests/dist/
 test/dist/
+test/test.js
+tests_output/
 txt-reader-worker.js
