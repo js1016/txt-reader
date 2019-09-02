@@ -7,8 +7,11 @@
             <div class="status">Status: {{running?'Running':'Idle'}}</div>
             <div class="progress">Progress: {{running?progress:'N/A'}}</div>
         </div>
-        <div id="command">
-            <select></select>
+        <div id="methods">
+            <template v-for="(value, name) in methods">
+                <input type="radio" :id="name" :value="name" v-model="activeMethodName" />
+                <label :for="name">{{value.signature}}</label>
+            </template>
         </div>
     </div>
 </template>
@@ -18,16 +21,86 @@ import Vue from "vue";
 import { Component, Prop } from "vue-property-decorator";
 import { TxtReader } from "../txt-reader";
 
+type Methods = {
+    loadFile: MethodConfig;
+    getLines: MethodConfig;
+    getSporadicLines: MethodConfig;
+    iterateLines: MethodConfig;
+    iterateSporadicLines: MethodConfig;
+    sniffLines: MethodConfig;
+    [index: string]: MethodConfig;
+};
+
+interface MethodConfig {
+    signature: string;
+    hasStartCount: boolean;
+    iteratable: boolean;
+    isSporadic: boolean;
+    hasDecode: boolean;
+    hasLineNumber: boolean;
+}
+
 @Component
 export default class App extends Vue {
     txtReader: TxtReader = window.txtReader;
     file!: File;
     running: boolean = false;
     progress: number = 0;
-    iterateOptions: { text: string; value: string }[] = [
-        { text: "Get first line and last line", value: "0" },
-        { text: "Get iterate count", value: "1" }
-    ];
+    activeMethodName: string = "";
+    methods: Methods = {
+        loadFile: {
+            signature: "loadFile(file[ ,iteratorConfig])",
+            hasStartCount: false,
+            iteratable: true,
+            isSporadic: false,
+            hasDecode: false,
+            hasLineNumber: false
+        },
+        getLines: {
+            signature: "getLines(start, count[, decode])",
+            hasStartCount: true,
+            iteratable: false,
+            isSporadic: false,
+            hasDecode: true,
+            hasLineNumber: false
+        },
+        getSporadicLines: {
+            signature: "getSporadicLines(sporadicLinesMap[, decode])",
+            hasStartCount: false,
+            iteratable: false,
+            isSporadic: true,
+            hasDecode: true,
+            hasLineNumber: false
+        },
+        iterateLines: {
+            signature: "iterateLines(iteratorConfig[, start, count])",
+            hasStartCount: true,
+            iteratable: true,
+            isSporadic: false,
+            hasDecode: false,
+            hasLineNumber: false
+        },
+        iterateSporadicLines: {
+            signature: "iterateSporadicLines(iteratorConfig, sporadicLinesMap)",
+            hasStartCount: false,
+            iteratable: true,
+            isSporadic: true,
+            hasDecode: false,
+            hasLineNumber: false
+        },
+        sniffLines: {
+            signature: "sniffLines(file, lineNumber[, decode])",
+            hasStartCount: false,
+            iteratable: false,
+            isSporadic: false,
+            hasDecode: true,
+            hasLineNumber: true
+        }
+    };
+
+    get activeMethod(): MethodConfig {
+        return this.methods[this.activeMethodName];
+    }
 
     mounted() {
         console.log("app mounted", this);
