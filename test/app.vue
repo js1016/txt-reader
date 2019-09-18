@@ -11,9 +11,9 @@
                 v-bind:class="{running:running}"
             >Status: {{running?'Running':'Idle'}}</div>
             <div class="progress">Progress: {{running?progress:'N/A'}}</div>
-            <input type="number" v-model="chunkSizeValue" />
-            <button @click="setChunkSize">Set Chunk Size</button>
-            <button @click="resetChunk">Reset Chunk Size</button>
+            <input type="number" id="chunk-size-input" v-model="chunkSizeValue" />
+            <button @click="setChunkSize" id="set-chunk-btn">Set Chunk Size</button>
+            <button @click="resetChunk" id="reset-chunk-btn">Reset Chunk Size</button>
         </div>
         <div id="methods">
             <template v-for="(value, name) in methods">
@@ -30,9 +30,9 @@
         <div id="configs">
             <div v-if="activeMethod.hasStartCount" id="start-count">
                 <span>Start:</span>
-                <input type="number" v-model="startValue" />
+                <input type="number" id="start" v-model="startValue" />
                 <span>Count:</span>
-                <input type="number" v-model="countValue" />
+                <input type="number" id="count" v-model="countValue" />
             </div>
             <div v-if="activeMethod.hasDecode" id="decode">
                 <label for="decode-checkbox">Decode:</label>
@@ -75,20 +75,25 @@
             <button id="execute" @click="execute">Execute</button>
             <button id="clear-console" @click="clearConsole">Clear Console</button>
             <template v-if="getResults.length>0">
-                <span>Get result count: {{getResults.length}}</span>
-                <button @click="prev">&lt;</button>
-                <input type="number" min="1" v-bind:max="this.pageCount" v-model="pageNumberValue" /> /
-                <span>{{this.pageCount}}</span>
-                <button @click="next">&gt;</button>
-                <button @click="go">Go</button>
+                <span>
+                    Get result count:
+                    <span id="result-count">{{getResults.length}}</span>
+                </span>
+                <button @click="prev" id="prev">&lt;</button>
+                <input
+                    type="number"
+                    id="page-number"
+                    min="1"
+                    v-bind:max="this.pageCount"
+                    v-model="pageNumberValue"
+                /> /
+                <span id="page-count">{{this.pageCount}}</span>
+                <button @click="next" id="next">&gt;</button>
+                <button @click="go" id="go">Go</button>
             </template>
         </div>
         <div id="console">
-            <div
-                v-for="message in messages"
-                v-html="message.content"
-                :class="{error:message.isError,normal:!message.isError}"
-            ></div>
+            <div v-for="message in messages" v-html="message.content" :class="message.type"></div>
         </div>
     </div>
 </template>
@@ -126,7 +131,7 @@ interface MethodConfig {
 
 type Message = {
     content: string;
-    isError: boolean;
+    type: string;
 };
 
 type GetResults = { lineNumber: number; value: string }[];
@@ -373,7 +378,7 @@ export default class App extends Vue {
             end = this.getResults.length;
         }
         for (let i = start; i < end; i++) {
-            this.log(
+            this.echo(
                 `${this.getResults[i].lineNumber}: ${this.getResults[i].value}`
             );
         }
@@ -381,6 +386,7 @@ export default class App extends Vue {
 
     execute() {
         this.clearConsole();
+        this.getResults = [];
         switch (this.activeMethodName) {
             case "loadFile":
                 this.loadFile();
@@ -630,17 +636,24 @@ export default class App extends Vue {
         };
     }
 
+    echo(message: string) {
+        this.messages.push({
+            content: message,
+            type: "echo"
+        });
+    }
+
     log(message: string) {
         this.messages.push({
             content: message,
-            isError: false
+            type: "normal"
         });
     }
 
     error(message: string) {
         this.messages.push({
             content: message,
-            isError: true
+            type: "error"
         });
     }
 
@@ -689,6 +702,9 @@ body {
     overflow-y: auto;
     > .error {
         color: red;
+    }
+    > .echo {
+        color: #d8d8d8;
     }
     > div {
         padding: 3px;

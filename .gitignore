@@ -8,3 +8,4 @@ test/dist/
 test/test.js
 tests_output/
 txt-reader-worker.js
+debug.log

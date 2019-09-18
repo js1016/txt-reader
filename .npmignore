@@ -10,3 +10,4 @@ tests_output/
 txt-reader-worker.js
 test/
 tests/
+debug.log
