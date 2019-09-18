@@ -2,9 +2,18 @@
     <div id="app">
         <div id="status-bar">
             <input type="file" id="file-input" v-on:change="fileChange" />
-            <div class="line-count">Line count: {{txtReader.lineCount}}</div>
-            <div class="status">Status: {{running?'Running':'Idle'}}</div>
+            <div class="line-count">
+                Line count:
+                <span>{{txtReader.lineCount}}</span>
+            </div>
+            <div
+                class="status"
+                v-bind:class="{running:running}"
+            >Status: {{running?'Running':'Idle'}}</div>
             <div class="progress">Progress: {{running?progress:'N/A'}}</div>
+            <input type="number" v-model="chunkSizeValue" />
+            <button @click="setChunkSize">Set Chunk Size</button>
+            <button @click="resetChunk">Reset Chunk Size</button>
         </div>
         <div id="methods">
             <template v-for="(value, name) in methods">
@@ -31,7 +40,7 @@
             </div>
             <div v-if="activeMethod.iteratable">
                 <span>Iterate action:</span>
-                <select v-model="iterateOption">
+                <select v-model="iterateOption" id="iterate-action">
                     <option value="0" v-if="activeMethodName==='loadFile'">None</option>
                     <option value="1">Iterate count</option>
                     <option
@@ -63,8 +72,16 @@
             </div>
         </div>
         <div id="button">
-            <button @click="execute">Execute</button>
-            <button @click="clearConsole">Clear Console</button>
+            <button id="execute" @click="execute">Execute</button>
+            <button id="clear-console" @click="clearConsole">Clear Console</button>
+            <template v-if="getResults.length>0">
+                <span>Get result count: {{getResults.length}}</span>
+                <button @click="prev">&lt;</button>
+                <input type="number" min="1" v-bind:max="this.pageCount" v-model="pageNumberValue" /> /
+                <span>{{this.pageCount}}</span>
+                <button @click="next">&gt;</button>
+                <button @click="go">Go</button>
+            </template>
         </div>
         <div id="console">
             <div
@@ -87,7 +104,6 @@ import {
     SporadicLineItem,
     SporadicLinesMap
 } from "../txt-reader-common";
-import { WSAEINTR } from "constants";
 
 type Methods = {
     loadFile: MethodConfig;
@@ -113,10 +129,16 @@ type Message = {
     isError: boolean;
 };
 
+type GetResults = { lineNumber: number; value: string }[];
+
 @Component
 export default class App extends Vue {
+    chunkSizeValue: string = "104857600";
+    pageSize: number = 1000;
+    getResults: GetResults = [];
     isFileLoaded: boolean = false;
     sporadicLinesValue: string = "";
+    pageNumberValue: string = "1";
     sporadicMapString: string = "";
     sporadicCustomize: boolean = false;
     sporadicLineMap: SporadicLinesMap = [];
@@ -182,6 +204,18 @@ export default class App extends Vue {
         }
     };
 
+    get chunkSize(): number {
+        return Number(this.chunkSizeValue);
+    }
+
+    get pageNumber(): number {
+        return Number(this.pageNumberValue);
+    }
+
+    get pageCount(): number {
+        return Math.ceil(this.getResults.length / this.pageSize);
+    }
+
     get activeMethod(): MethodConfig {
         return this.methods[this.activeMethodName];
     }
@@ -200,6 +234,13 @@ export default class App extends Vue {
 
     get sporadicLines(): number {
         return Number(this.sporadicLinesValue);
+    }
+
+    @Watch("getResults")
+    onGetResultsChange(results: GetResults) {
+        if (results.length > 0) {
+            this.pageNumberValue = "1";
+        }
     }
 
     @Watch("activeMethodName")
@@ -284,6 +325,60 @@ export default class App extends Vue {
         this.sporadicMapString = JSON.stringify(this.sporadicLineMap);
     }
 
+    prev() {
+        let prevNumber = this.pageNumber - 1;
+        if (prevNumber === 0) {
+            this.pageNumberValue = this.pageCount.toString();
+        } else {
+            this.pageNumberValue = prevNumber.toString();
+        }
+        this.go();
+    }
+
+    next() {
+        let nextNumber = this.pageNumber + 1;
+        if (nextNumber > this.pageCount) {
+            this.pageNumberValue = "1";
+        } else {
+            this.pageNumberValue = nextNumber.toString();
+        }
+        this.go();
+    }
+
+    resetChunk() {
+        this.chunkSizeValue = "104857600";
+        this.setChunkSize();
+    }
+
+    setChunkSize() {
+        this.clearConsole();
+        this.running = true;
+        this.txtReader
+            .setChunkSize(this.chunkSize)
+            .then(response => {
+                this.running = false;
+                this.log(`Chunk size is set to ${response.result}`);
+            })
+            .catch(reason => {
+                this.running = false;
+                this.error(`setChunkSize encountered error: ${reason}`);
+            });
+    }
+
+    go() {
+        this.clearConsole();
+        let start = (this.pageNumber - 1) * this.pageSize;
+        let end = start + this.pageSize;
+        if (end > this.getResults.length) {
+            end = this.getResults.length;
+        }
+        for (let i = start; i < end; i++) {
+            this.log(
+                `${this.getResults[i].lineNumber}: ${this.getResults[i].value}`
+            );
+        }
+    }
+
     execute() {
         this.clearConsole();
         switch (this.activeMethodName) {
@@ -308,6 +403,25 @@ export default class App extends Vue {
         }
     }
 
+    saveResults(
+        results: (Uint8Array | string)[],
+        start: number,
+        count: number
+    ) {
+        this.getResults = [];
+        let needDecode = typeof results[0] !== "string";
+        for (let i = 0; i < results.length; i++) {
+            this.getResults.push({
+                lineNumber: start + i,
+                value: needDecode
+                    ? this.txtReader.utf8decoder.decode(results[
+                          i
+                      ] as Uint8Array)
+                    : (results[i] as string)
+            });
+        }
+    }
+
     getLines() {
         if (this.start > 0 && this.count > 0) {
             this.running = true;
@@ -320,20 +434,8 @@ export default class App extends Vue {
                 .then(response => {
                     console.log(response);
                     this.running = false;
-                    let first = decode
-                        ? (response.result[0] as string)
-                        : this.txtReader.utf8decoder.decode(response
-                              .result[0] as Uint8Array);
-                    let last = decode
-                        ? (response.result[
-                              response.result.length - 1
-                          ] as string)
-                        : this.txtReader.utf8decoder.decode(response.result[
-                              response.result.length - 1
-                          ] as Uint8Array);
                     this.log(`getLine completed in ${response.timeTaken}ms`);
-                    this.log(`First line: ${first}`);
-                    this.log(`Last line: ${last}`);
+                    this.saveResults(response.result, this.start, this.count);
                 })
                 .catch(reason => {
                     this.running = false;
@@ -357,20 +459,99 @@ export default class App extends Vue {
                         `getSporadicLines completed in ${response.timeTaken}ms`
                     );
                     console.log(response);
+                    if (!this.decode) {
+                        this.getResults = [];
+                        for (let i = 0; i < response.result.length; i++) {
+                            this.getResults.push({
+                                lineNumber: response.result[i].lineNumber,
+                                value: this.txtReader.utf8decoder.decode(
+                                    response.result[i].value as Uint8Array
+                                )
+                            });
+                        }
+                    } else {
+                        this.getResults = response.result as GetResults;
+                    }
                 })
                 .catch(reason => {
                     this.running = false;
-                    3;
                     this.error(`getSporadicLines encountered error: ${reason}`);
                 });
         }
     }
 
-    iterateLines() {}
+    iterateLines() {
+        let hasRange = this.start > 0 && this.count > 0;
+        this.running = true;
+        this.txtReader
+            .iterateLines(
+                this.getIteratorConfig(),
+                hasRange ? this.start : undefined,
+                hasRange ? this.count : undefined
+            )
+            .progress(progress => {
+                this.progress = progress;
+            })
+            .then(response => {
+                this.running = false;
+                this.log(`iterateLines completed in ${response.timeTaken}ms`);
+                console.log(response);
+                this.processIteratorResult(this.iterateOption, response.result);
+            })
+            .catch(reason => {
+                this.running = false;
+                this.error(`iterateLines encountered error: ${reason}`);
+            });
+    }
 
-    iterateSporadicLines() {}
+    iterateSporadicLines() {
+        if (this.sporadicLineMap.length > 0) {
+            this.running = true;
+            this.txtReader
+                .iterateSporadicLines(
+                    this.getIteratorConfig(),
+                    this.sporadicLineMap
+                )
+                .progress(progress => {
+                    this.progress = progress;
+                })
+                .then(response => {
+                    this.running = false;
+                    this.log(
+                        `iterateSporadicLines completed in ${response.timeTaken}ms`
+                    );
+                    console.log(response);
+                    this.processIteratorResult(
+                        this.iterateOption,
+                        response.result
+                    );
+                })
+                .catch(reason => {
+                    this.running = false;
+                    this.error(
+                        `iterateSporadicLines encountered error: ${reason}`
+                    );
+                });
+        }
+    }
 
-    sniffLines() {}
+    sniffLines() {
+        if (this.file && this.lineNumber > 0) {
+            let decode = this.decode;
+            this.running = true;
+            this.txtReader
+                .sniffLines(this.file, this.lineNumber, decode)
+                .progress(progress => {
+                    this.progress = progress;
+                })
+                .then(response => {
+                    this.running = false;
+                    this.log(`sniffLines completed in ${response.timeTaken}ms`);
+                    console.log(response);
+                    this.saveResults(response.result, 1, this.lineNumber);
+                });
+        }
+    }
 
     mounted() {
         console.log("app mounted", this);
@@ -407,7 +588,10 @@ export default class App extends Vue {
                 );
                 this.log(`Found lines: ${response.result.lineCount}`);
                 if (this.iterateOption !== "0") {
-                    this.processIteratorResult(response.result.scope);
+                    this.processIteratorResult(
+                        this.iterateOption,
+                        response.result.scope
+                    );
                 }
                 this.isFileLoaded = true;
             })
@@ -418,6 +602,24 @@ export default class App extends Vue {
     }
 
     getIteratorConfig(): IIteratorConfig {
+        if (this.iterateOption === "2") {
+            return {
+                eachLine: function(raw, progress, lineNumber) {
+                    if (this.first === null) {
+                        this.first = raw;
+                        this.firstLineNumber = lineNumber;
+                    }
+                    this.last = raw;
+                    this.lastLineNumber = lineNumber;
+                },
+                scope: {
+                    first: null,
+                    firstLineNumber: 0,
+                    last: null,
+                    lastLineNumber: 0
+                }
+            };
+        }
         return {
             eachLine: function() {
                 this.count++;
@@ -446,8 +648,21 @@ export default class App extends Vue {
         this.messages = [];
     }
 
-    processIteratorResult(scope: any) {
-        this.log(`iterate count: ${scope.count}`);
+    processIteratorResult(iterateOption: string, scope: any) {
+        if (iterateOption === "1") {
+            this.log(`iterate count: ${scope.count}`);
+        } else if (iterateOption === "2") {
+            this.log(
+                `First line (${
+                    scope.firstLineNumber
+                }): ${this.txtReader.utf8decoder.decode(scope.first)}`
+            );
+            this.log(
+                `Last line (${
+                    scope.lastLineNumber
+                }): ${this.txtReader.utf8decoder.decode(scope.last)}`
+            );
+        }
     }
 }
 </script>
@@ -471,6 +686,7 @@ body {
     width: calc(100% - 40px);
     height: calc(100vh - 150px);
     margin: 10px auto;
+    overflow-y: auto;
     > .error {
         color: red;
     }

@@ -20,7 +20,7 @@ interface ISniffConfig {
 
 const utf8decoder = new TextDecoder('utf-8');
 
-let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 50;
+let DEFAULT_CHUNK_SIZE: number = 1024 * 1024 * 100;
 
 let currentTaskId: number | null = null;
 
