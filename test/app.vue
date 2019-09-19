@@ -420,9 +420,7 @@ export default class App extends Vue {
             this.getResults.push({
                 lineNumber: start + i,
                 value: needDecode
-                    ? this.txtReader.utf8decoder.decode(results[
-                          i
-                      ] as Uint8Array)
+                    ? results[i].toString()
                     : (results[i] as string)
             });
         }
@@ -700,6 +698,7 @@ body {
     height: calc(100vh - 150px);
     margin: 10px auto;
     overflow-y: auto;
+    white-space: pre-wrap;
     > .error {
         color: red;
     }

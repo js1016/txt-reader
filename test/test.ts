@@ -1,7 +1,7 @@
 import { NightwatchAPI } from "nightwatch";
 import * as lineReader from "line-reader";
 import * as path from "path";
-import { promises } from "fs";
+import * as chai from "chai";
 
 class TestFile {
     filePath: string;
@@ -10,10 +10,13 @@ class TestFile {
         this.filePath = `${__dirname}/samples/${fileName}`;
         lineReader.eachLine(this.filePath, (line, last) => {
             this.lines.push(line);
+            if (this.lines.length === 1 && this.lines[0].charCodeAt(0) === 65279) {
+                this.lines[0] = this.lines[0].substr(1);
+            }
             if (last) {
                 cb();
             }
-        })
+        });
     }
 }
 
@@ -40,24 +43,38 @@ module.exports = {
         browser.expect.element('#console .error').to.be.present;
     },
     'Test mixed-eol-6-lines.txt': function (browser: NightwatchAPI) {
+        let testFile = testFiles[0];
         setChunkSize(1, browser);
-        testLoadFile(testFiles[0], browser);
-        testLoadFile(testFiles[0], browser, true);
-        browser.click('#getLines');
-        for (let i = 1; i <= testFiles[0].lines.length; i++) {
-            browser
-                .clearValue('#start')
-                .setValue('#start', i.toString())
-                .clearValue('#count')
-                .setValue('#count', '1')
-                .click('#execute')
-                .waitForElementNotPresent('.status.running', 10000);
-            verifyGetResult(testFiles[0], browser);
+        testLoadFile(testFile, browser);
+        testLoadFile(testFile, browser, true);
+        for (let i = 1; i <= testFile.lines.length; i++) {
+            getLines(browser, i, 1);
+            verifyGetResult(testFile, browser);
+        }
+        getLines(browser, 1, testFile.lines.length + 1, false);
+    },
+    'Test CBS.log': function (browser: NightwatchAPI) {
+        resetChunkSize(browser);
+        testLoadFile(testFiles[1], browser, true);
+        for (let i = 1; i <= testFiles[1].lines.length; i += 9999) {
+            getLines(browser, i, 10000);
+            verifyGetResult(testFiles[1], browser);
         }
     }
 }
 
+function getLines(browser: NightwatchAPI, start: number, count: number, decode: boolean = true) {
+    browser.click('#getLines')
+        .clearValue('#start')
+        .setValue('#start', start.toString())
+        .clearValue('#count')
+        .setValue('#count', count.toString())
+        .click('#execute')
+        .waitForElementNotPresent('.status.running', 10000);
+}
+
 async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
+    let matchReg = /^(\d+): (.+)?$/
     let start: number = Number(await getValue(browser, '#start'));
     let count: number = Number(await getValue(browser, '#count'));
     let expectResultCount: number = count;
@@ -72,12 +89,18 @@ async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
             .setValue('#page-number', i.toString())
             .click('#go')
             .waitForElementPresent('#console .echo', 1000);
-        let outputs = await getElements(browser, '#console .echo');
-        outputs.forEach(async item => {
-            let text = await getTextFromElementId(browser, item.ELEMENT);
-            browser.expect(true).to.be.false;
-            debugger;
-        })
+        let all = await getText(browser, '#console');
+        let outputs = all.split('\n');
+        outputs.forEach(item => {
+            let match = matchReg.exec(item);
+            chai.expect(match).not.to.be.null;
+            if (match) {
+                let lineNumber = Number(match[1]);
+                let content = match[2] ? match[2] : '';
+                let expectContent = testFile.lines[lineNumber - 1];
+                chai.expect(content, `Line ${lineNumber} should be: ${expectContent}`).to.be.equal(expectContent);
+            }
+        });
     }
 }
 
@@ -141,6 +164,6 @@ function testLoadFile(testFile: TestFile, browser: NightwatchAPI, doIterate: boo
     browser.expect.element('#console .error').not.to.be.present;
     browser.expect.element('.line-count span').text.to.be.equal(testFile.lines.length.toString());
     if (doIterate) {
-        browser.expect.element('#console .normal:last-child').text.to.be.equal(`iterate count: ${testFiles[0].lines.length}`);
+        browser.expect.element('#console .normal:last-child').text.to.be.equal(`iterate count: ${testFile.lines.length}`);
     }
 }

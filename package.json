@@ -4,7 +4,7 @@
   "description": "TxtReader is a JavaScript library to read text file in browsers based on FileReader API. It can read very large, huge, giant files (GB+).",
   "main": "txt-reader.js",
   "scripts": {
-    "test:debug": "node --inspect-brk .\\node_modules\\nightwatch\\bin\\nightwatch -t test/test.js",
+    "test:debug": "tsc test/test.ts && node --inspect-brk .\\node_modules\\nightwatch\\bin\\nightwatch -t test/test.js",
     "test": "tsc test/test.ts && nightwatch -t test/test.js",
     "build": "webpack --config webpack.node.js --mode development",
     "_build-watch": "webpack --config webpack.node.js --mode development -w",
@@ -31,6 +31,7 @@
     "text-encoding-shim": "^1.0.4"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.3",
     "@types/json5": "0.0.30",
     "@types/line-reader": "0.0.28",
     "@types/nightwatch": "^1.1.1",
