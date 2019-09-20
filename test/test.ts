@@ -2,6 +2,7 @@ import { NightwatchAPI } from "nightwatch";
 import * as lineReader from "line-reader";
 import * as path from "path";
 import * as chai from "chai";
+import { TextDecoder } from "util";
 
 class TestFile {
     filePath: string;
@@ -21,6 +22,7 @@ class TestFile {
 }
 
 let testFiles: TestFile[] = [];
+let decoder = new TextDecoder('utf-8');
 
 module.exports = {
     before: function (browser: NightwatchAPI, done: () => void) {
@@ -31,7 +33,7 @@ module.exports = {
         }));
     },
     after: function (browser: NightwatchAPI) {
-        //browser.end();
+        browser.end();
     },
     'Navigate to http://localhost:8081': function (browser: NightwatchAPI) {
         browser.url('http://localhost:8081/')
@@ -42,38 +44,52 @@ module.exports = {
             .waitForElementNotPresent('.status.running', 10000);
         browser.expect.element('#console .error').to.be.present;
     },
-    'Test mixed-eol-6-lines.txt': function (browser: NightwatchAPI) {
+    'Test mixed-eol-6-lines.txt': async function (browser: NightwatchAPI) {
         let testFile = testFiles[0];
         setChunkSize(1, browser);
         testLoadFile(testFile, browser);
         testLoadFile(testFile, browser, true);
         for (let i = 1; i <= testFile.lines.length; i++) {
-            getLines(browser, i, 1);
-            verifyGetResult(testFile, browser);
+            testGetLines(browser, testFile, i, 1);
         }
-        getLines(browser, 1, testFile.lines.length + 1, false);
+        testGetLines(browser, testFile, 1, testFile.lines.length + 1, false);
+        testGetLines(browser, testFile, testFile.lines.length + 1, 1, false);
+        testGetLines(browser, testFile, 0, 1, false);
     },
     'Test CBS.log': function (browser: NightwatchAPI) {
         resetChunkSize(browser);
+        let testFile = testFiles[1];
         testLoadFile(testFiles[1], browser, true);
-        for (let i = 1; i <= testFiles[1].lines.length; i += 9999) {
-            getLines(browser, i, 10000);
-            verifyGetResult(testFiles[1], browser);
+        for (let i = 1; i <= testFile.lines.length; i += 9999) {
+            testGetLines(browser, testFile, i, 10000, false);
         }
     }
 }
 
-function getLines(browser: NightwatchAPI, start: number, count: number, decode: boolean = true) {
+async function testGetSporadicLines(browser: NightwatchAPI, testFile: TestFile, lineCount: number, decode: boolean = true) {
+    browser.click('#getSporadicLines')
+        .clearValue('#sporadic-line-count')
+        .setValue('#sporadic-line-count', lineCount.toString())
+        //.pause()
+}
+
+async function testGetLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number, decode: boolean = true) {
     browser.click('#getLines')
         .clearValue('#start')
         .setValue('#start', start.toString())
         .clearValue('#count')
-        .setValue('#count', count.toString())
-        .click('#execute')
-        .waitForElementNotPresent('.status.running', 10000);
+        .setValue('#count', count.toString());
+    await toggleCheckbox(browser, '#decode-checkbox', decode);
+    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
+    if (start > testFile.lines.length || start < 1) {
+        browser.expect.element('#console .error').to.be.present;
+    } else {
+        verifyGetResult(testFile, browser);
+    }
 }
 
 async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
+    let decode = await isChecked(browser, '#decode-checkbox');
     let matchReg = /^(\d+): (.+)?$/
     let start: number = Number(await getValue(browser, '#start'));
     let count: number = Number(await getValue(browser, '#count'));
@@ -96,12 +112,54 @@ async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
             chai.expect(match).not.to.be.null;
             if (match) {
                 let lineNumber = Number(match[1]);
+                if (lineNumber === 99) {
+                    debugger;
+                }
                 let content = match[2] ? match[2] : '';
+                if (!decode && content.length > 0) {
+                    let outputArr = new Uint8Array(content.split(',').map(function (i) {
+                        return Number(i);
+                    }));
+                    content = decoder.decode(outputArr);
+                }
                 let expectContent = testFile.lines[lineNumber - 1];
                 chai.expect(content, `Line ${lineNumber} should be: ${expectContent}`).to.be.equal(expectContent);
             }
         });
     }
+}
+
+function isChecked(browser: NightwatchAPI, selector: string): Promise<boolean> {
+    return new Promise(resolve => {
+        browser.getAttribute(selector, 'checked', function (result) {
+            if (result.value === 'true') {
+                resolve(true);
+            } else {
+                resolve(false);
+            }
+        });
+    });
+}
+
+function toggleCheckbox(browser: NightwatchAPI, selector: string, checked: boolean): Promise<undefined> {
+    return new Promise(async resolve => {
+        let currentChecked = await isChecked(browser, selector);
+        if (currentChecked === checked) {
+            resolve();
+        } else {
+            browser.click(selector, function () {
+                resolve();
+            });
+        }
+        // browser.getAttribute(selector, 'checked', function (result) {
+        //     if ((checked === true && result.value === 'true') || (checked === false && result.value === null)) {
+        //         browser.click(selector, function () {
+        //             resolve();
+        //         });
+        //     } else {
+        //     }
+        // });
+    });
 }
 
 function getElements(browser: NightwatchAPI, selector: string): Promise<{ ELEMENT: string }[]> {

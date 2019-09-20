@@ -52,7 +52,7 @@
             <div v-if="activeMethod.isSporadic">
                 <div>
                     <span>Sporaidc Lines:</span>
-                    <input type="number" v-model="sporadicLinesValue" />
+                    <input type="number" id="sporadic-line-count" v-model="sporadicLinesValue" />
                     <span>lines</span>
                 </div>
                 <div>
@@ -93,7 +93,7 @@
             </template>
         </div>
         <div id="console">
-            <div v-for="message in messages" v-html="message.content" :class="message.type"></div>
+            <div v-for="message in messages" :class="message.type">{{message.content}}</div>
         </div>
     </div>
 </template>
@@ -427,25 +427,23 @@ export default class App extends Vue {
     }
 
     getLines() {
-        if (this.start > 0 && this.count > 0) {
-            this.running = true;
-            let decode = this.decode;
-            this.txtReader
-                .getLines(this.start, this.count, decode)
-                .progress(progress => {
-                    this.progress = progress;
-                })
-                .then(response => {
-                    console.log(response);
-                    this.running = false;
-                    this.log(`getLine completed in ${response.timeTaken}ms`);
-                    this.saveResults(response.result, this.start, this.count);
-                })
-                .catch(reason => {
-                    this.running = false;
-                    this.error(`getLine encountered error: ${reason}`);
-                });
-        }
+        this.running = true;
+        let decode = this.decode;
+        this.txtReader
+            .getLines(this.start, this.count, decode)
+            .progress(progress => {
+                this.progress = progress;
+            })
+            .then(response => {
+                console.log(response);
+                this.running = false;
+                this.log(`getLine completed in ${response.timeTaken}ms`);
+                this.saveResults(response.result, this.start, this.count);
+            })
+            .catch(reason => {
+                this.running = false;
+                this.error(`getLine encountered error: ${reason}`);
+            });
     }
 
     getSporadicLines() {
