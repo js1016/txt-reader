@@ -23,6 +23,7 @@ class TestFile {
 
 let testFiles: TestFile[] = [];
 let decoder = new TextDecoder('utf-8');
+let currentMethod: string = '';
 
 module.exports = {
     before: function (browser: NightwatchAPI, done: () => void) {
@@ -55,26 +56,39 @@ module.exports = {
         testGetLines(browser, testFile, 1, testFile.lines.length + 1, false);
         testGetLines(browser, testFile, testFile.lines.length + 1, 1, false);
         testGetLines(browser, testFile, 0, 1, false);
+        resetChunkSize(browser); // to do: need to remove as getSporadicLines has bug when chunk size is 1
+        for (let i = 1; i <= testFile.lines.length; i++) {
+            testGetSporadicLines(browser, testFile, i);
+        }
+        testGetSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2), false);
     },
     'Test CBS.log': function (browser: NightwatchAPI) {
         resetChunkSize(browser);
         let testFile = testFiles[1];
         testLoadFile(testFiles[1], browser, true);
         for (let i = 1; i <= testFile.lines.length; i += 9999) {
-            testGetLines(browser, testFile, i, 10000, false);
+            testGetLines(browser, testFile, i, 10000);
         }
+        testGetSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
     }
 }
 
 async function testGetSporadicLines(browser: NightwatchAPI, testFile: TestFile, lineCount: number, decode: boolean = true) {
-    browser.click('#getSporadicLines')
+    browser.click('#getSporadicLines', function () {
+        currentMethod = 'getSporadicLines';
+    })
         .clearValue('#sporadic-line-count')
-        .setValue('#sporadic-line-count', lineCount.toString())
-        //.pause()
+        .setValue('#sporadic-line-count', lineCount.toString());
+    await toggleCheckbox(browser, '#decode-checkbox', decode);
+    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
+    verifyGetResult(testFile, browser);
+    //.pause()
 }
 
 async function testGetLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number, decode: boolean = true) {
-    browser.click('#getLines')
+    browser.click('#getLines', function () {
+        currentMethod = 'getLines';
+    })
         .clearValue('#start')
         .setValue('#start', start.toString())
         .clearValue('#count')
@@ -90,12 +104,22 @@ async function testGetLines(browser: NightwatchAPI, testFile: TestFile, start: n
 
 async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
     let decode = await isChecked(browser, '#decode-checkbox');
-    let matchReg = /^(\d+): (.+)?$/
-    let start: number = Number(await getValue(browser, '#start'));
-    let count: number = Number(await getValue(browser, '#count'));
-    let expectResultCount: number = count;
-    if (start + count - 1 > testFile.lines.length) {
-        expectResultCount = testFile.lines.length - start + 1;
+    let matchReg = /^(\d+): (.+)?$/;
+    let expectResultCount: number = 0;
+    debugger;
+    if (currentMethod === 'getLines') {
+        let start: number = Number(await getValue(browser, '#start'));
+        let count: number = Number(await getValue(browser, '#count'));
+        expectResultCount = count;
+        if (start + count - 1 > testFile.lines.length) {
+            expectResultCount = testFile.lines.length - start + 1;
+        }
+    } else if (currentMethod === 'getSporadicLines') {
+        let lineCount: number = Number(await getValue(browser, '#sporadic-line-count'));
+        expectResultCount = lineCount;
+        if (lineCount > testFile.lines.length) {
+            expectResultCount = testFile.lines.length;
+        }
     }
     browser.expect.element('#result-count').text.to.be.equal(expectResultCount.toString());
     let pageCount: number = Number(await getText(browser, '#page-count'));

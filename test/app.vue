@@ -466,9 +466,7 @@ export default class App extends Vue {
                         for (let i = 0; i < response.result.length; i++) {
                             this.getResults.push({
                                 lineNumber: response.result[i].lineNumber,
-                                value: this.txtReader.utf8decoder.decode(
-                                    response.result[i].value as Uint8Array
-                                )
+                                value: response.result[i].value.toString()
                             });
                         }
                     } else {
