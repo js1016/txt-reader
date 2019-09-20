@@ -659,12 +659,12 @@ export default class App extends Vue {
         if (iterateOption === "1") {
             this.log(`iterate count: ${scope.count}`);
         } else if (iterateOption === "2") {
-            this.log(
+            this.echo(
                 `First line (${
                     scope.firstLineNumber
                 }): ${this.txtReader.utf8decoder.decode(scope.first)}`
             );
-            this.log(
+            this.echo(
                 `Last line (${
                     scope.lastLineNumber
                 }): ${this.txtReader.utf8decoder.decode(scope.last)}`

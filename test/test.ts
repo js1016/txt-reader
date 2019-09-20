@@ -56,7 +56,11 @@ module.exports = {
         testGetLines(browser, testFile, 1, testFile.lines.length + 1, false);
         testGetLines(browser, testFile, testFile.lines.length + 1, 1, false);
         testGetLines(browser, testFile, 0, 1, false);
+        for (let i = 1; i <= testFile.lines.length; i++) {
+            testIterateLines(browser, testFile, i, 1);
+        }
         resetChunkSize(browser); // to do: need to remove as getSporadicLines has bug when chunk size is 1
+        testLoadFile(testFile, browser);
         for (let i = 1; i <= testFile.lines.length; i++) {
             testGetSporadicLines(browser, testFile, i);
         }
@@ -73,6 +77,27 @@ module.exports = {
     }
 }
 
+async function testIterateLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number) {
+    browser.click('#iterateLines', function () {
+        currentMethod = 'iterateLines';
+    })
+        .clearValue('#start')
+        .setValue('#start', start.toString())
+        .clearValue('#count')
+        .setValue('#count', count.toString())
+        .click('#iterate-action option[value="2"]');
+    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
+    if (start > testFile.lines.length) {
+        browser.expect.element('#console .error').to.be.present;
+    } else {
+        let echoElements = await getElements(browser, '#console .echo');
+        echoElements.forEach(async echoElement => {
+            let text = await getTextFromElementId(browser, echoElement.ELEMENT);
+            debugger;
+        });
+    }
+}
+
 async function testGetSporadicLines(browser: NightwatchAPI, testFile: TestFile, lineCount: number, decode: boolean = true) {
     browser.click('#getSporadicLines', function () {
         currentMethod = 'getSporadicLines';
@@ -82,7 +107,6 @@ async function testGetSporadicLines(browser: NightwatchAPI, testFile: TestFile, 
     await toggleCheckbox(browser, '#decode-checkbox', decode);
     browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
     verifyGetResult(testFile, browser);
-    //.pause()
 }
 
 async function testGetLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number, decode: boolean = true) {
@@ -106,7 +130,6 @@ async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
     let decode = await isChecked(browser, '#decode-checkbox');
     let matchReg = /^(\d+): (.+)?$/;
     let expectResultCount: number = 0;
-    debugger;
     if (currentMethod === 'getLines') {
         let start: number = Number(await getValue(browser, '#start'));
         let count: number = Number(await getValue(browser, '#count'));
@@ -136,9 +159,6 @@ async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
             chai.expect(match).not.to.be.null;
             if (match) {
                 let lineNumber = Number(match[1]);
-                if (lineNumber === 99) {
-                    debugger;
-                }
                 let content = match[2] ? match[2] : '';
                 if (!decode && content.length > 0) {
                     let outputArr = new Uint8Array(content.split(',').map(function (i) {
