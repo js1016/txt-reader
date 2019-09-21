@@ -59,6 +59,9 @@ module.exports = {
         for (let i = 1; i <= testFile.lines.length; i++) {
             testIterateLines(browser, testFile, i, 1);
         }
+        testIterateLines(browser, testFile, testFile.lines.length + 1, 1);
+        testIterateLines(browser, testFile, 0, 1);
+        testIterateLines(browser, testFile, Math.ceil(testFile.lines.length / 2), testFile.lines.length);
         resetChunkSize(browser); // to do: need to remove as getSporadicLines has bug when chunk size is 1
         testLoadFile(testFile, browser);
         for (let i = 1; i <= testFile.lines.length; i++) {
@@ -78,6 +81,8 @@ module.exports = {
 }
 
 async function testIterateLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number) {
+    let firstLineRegExp = /^First line \((\d+)\): (.+)?$/;
+    let lastLineRegExp = /^Last line \((\d+)\): (.+)?$/;
     browser.click('#iterateLines', function () {
         currentMethod = 'iterateLines';
     })
@@ -87,13 +92,35 @@ async function testIterateLines(browser: NightwatchAPI, testFile: TestFile, star
         .setValue('#count', count.toString())
         .click('#iterate-action option[value="2"]');
     browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
-    if (start > testFile.lines.length) {
+    if (start > testFile.lines.length || start < 1) {
         browser.expect.element('#console .error').to.be.present;
     } else {
+        let expectStart = start;
+        if (start < 1) {
+            expectStart = 1;
+        }
+        let expectEnd = start + count - 1;
+        if (expectEnd > testFile.lines.length) {
+            expectEnd = testFile.lines.length;
+        }
         let echoElements = await getElements(browser, '#console .echo');
         echoElements.forEach(async echoElement => {
             let text = await getTextFromElementId(browser, echoElement.ELEMENT);
-            debugger;
+            let isFirst = text.startsWith('First');
+            let regexp = isFirst ? firstLineRegExp : lastLineRegExp;
+            let match = regexp.exec(text);
+            chai.expect(match).not.to.be.null;
+            if (match) {
+                let lineNumber = Number(match[1]);
+                if (isFirst) {
+                    chai.expect(lineNumber, `First line number should be ${expectStart}`).to.be.equal(expectStart);
+                } else {
+                    chai.expect(lineNumber, `Last line number should be ${expectEnd}`).to.be.equal(expectEnd);
+                }
+                let content = match[2];
+                let expectContent = testFile.lines[lineNumber - 1];
+                chai.expect(content, `Line ${lineNumber} should be: ${expectContent}`).to.be.equal(expectContent);
+            }
         });
     }
 }

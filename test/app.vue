@@ -481,7 +481,7 @@ export default class App extends Vue {
     }
 
     iterateLines() {
-        let hasRange = this.start > 0 && this.count > 0;
+        let hasRange = this.startValue !== "" && this.countValue !== "";
         this.running = true;
         this.txtReader
             .iterateLines(

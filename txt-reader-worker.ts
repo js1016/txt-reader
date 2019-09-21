@@ -601,6 +601,9 @@ class TxtReaderWorker {
         if (start < 1 || start > this.lineCount) {
             respondMessage(new ResponseMessage(false, 'Start line number is invalid'));
             return false;
+        } else if (count < 1) {
+            respondMessage(new ResponseMessage(false, 'Count is invalid'));
+            return false;
         } else {
             let endLineNumber: number = start + count - 1;
             endLineNumber = endLineNumber > this.lineCount ? this.lineCount : endLineNumber;

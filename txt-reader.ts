@@ -300,8 +300,8 @@ export class TxtReader {
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
         return this.newTask<IIterateLinesTaskResponse>('iterateLines', {
             config: this.getItertorConfigMessage(cloneDeep(config)),
-            start: start || null,
-            count: count || null
+            start: start !== undefined ? start : null,
+            count: count !== undefined ? count : null
         });
     }
 
