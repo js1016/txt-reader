@@ -1,42 +1,73 @@
+const path = require('path');
+const { VueLoaderPlugin } = require('vue-loader');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
-const webpack = require('webpack');
+const WorkerInlinifyWebpackPlugin = require('worker-inlinify-webpack-plugin');
 
 module.exports = {
     entry: {
-        'index': './tests/app.js'
+        index: './tests/index.ts',
+        'txt-reader-worker': './txt-reader-worker.ts'
     },
     output: {
-        path: __dirname + '/tests/dist/',
-        filename: 'app.js'
-    },
-    resolve: {
-        extensions: ['.ts', '.tsx', '.js']
+        path: path.resolve(__dirname, './tests/dist'),
+        filename: '[name].js'
     },
     module: {
         rules: [
             {
-                test: /\.css$/,
-                use: ['style-loader', 'css-loader']
-            }, {
-                test: /\.less$/,
-                use: ['style-loader', 'css-loader', 'less-loader']
-            }, {
+                test: /\.vue$/,
+                loader: 'vue-loader'
+            },
+            {
                 test: /\.tsx?$/,
-                loader: ['ts-loader']
+                loader: 'ts-loader',
+                exclude: /node_modules/,
+                options: {
+                    appendTsSuffixTo: [/\.vue$/],
+                }
+            },
+            {
+                test: /\.less$/,
+                use: [
+                    'vue-style-loader',
+                    'css-loader',
+                    'less-loader'
+                ]
+            },
+            {
+                test: /\.css$/,
+                use: [
+                    'vue-style-loader',
+                    'css-loader'
+                ]
             }
         ]
     },
+    resolve: {
+        extensions: ['.ts', '.js', '.vue', '.json'],
+        alias: {
+            'vue$': 'vue/dist/vue.esm.js'
+        }
+    },
+    devServer: {
+        contentBase: path.join(__dirname, './tests/dist'),
+        historyApiFallback: true,
+        port: 8081,
+        compress: true
+    },
+    performance: {
+        hints: false
+    },
+    devtool: '#eval-source-map',
     plugins: [
         new CleanWebpackPlugin(),
+        new VueLoaderPlugin(),
+        new WorkerInlinifyWebpackPlugin(),
         new HtmlWebpackPlugin({
-            title: 'Custom template',
-            template: './tests/index.html'
-        }),
-        new webpack.ProvidePlugin({
-            $: 'jquery',
-            jQuery: 'jquery'
+            template: './tests/index.html',
+            chunks: ['index']
         })
     ],
-    mode: "development"
+    mode: 'development'
 }

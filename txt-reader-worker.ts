@@ -563,6 +563,10 @@ class TxtReaderWorker {
         this.iterator = new Iterator();
         this.iterator.createMap = true;
         if (sniffConfig) {
+            if (sniffConfig.lineNumber < 1) {
+                respondMessage(new ResponseMessage(false, 'Sniff line number is invalid.'));
+                return;
+            }
             this.sniffLines = [];
             this.iterator.linesToIterate = sniffConfig.lineNumber;
             this.iterator.createMap = false;

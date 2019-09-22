@@ -5,46 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>IIS log reader</title>
+    <title>TxtReader</title>
 </head>
 
 <body>
-    <input type="file" id="file-input" />
-    <br>
-    <button id="load-file">Load File</button>
-    <button id="get-line-count">Get Line Count</button>
-    <div>
-        Chunk Size:
-        <input type="text" id="chunk-size" />
-        <button id="set-chunk-size">Set Chunk Size</button>
-    </div>
-    <div>
-        Start:
-        <input type="text" id="start-line" /> Count:
-        <input type="text" id="count" />
-        <button id="get-lines">Get Lines</button>
-        <button id="iterate-lines">Iterate Lines</button>
-    </div>
-    <br>
-    <div>
-        <button id="get-sporadic-lines">Get Sporadic Lines</button>
-        <button id="iterate-sporadic-lines">Iterate Sporadic Lines</button>
-    </div>
-    <br>
-    <div>
-        Line Number: <input type="text" id="sniff-line-number" />
-        <!-- fromBeginToEnd: <select id="sniff-line-begin-to-end">
-            <option value="true" selected>True</option>
-            <option value="false">False</option>
-        </select> -->
-        <button id="sniff-lines">SniffLines</button>
-    </div>
-    <div>
-        <button id="test-button">test</button>
-    </div>
-    <div id="running" class="hide">Running</div>
-    <div id="console"></div>
-    <button id="clear-console">Clear Console</button>
+    <div id="app"></div>
 </body>
 
 </html>

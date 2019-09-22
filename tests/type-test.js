@@ -1,4 +1,4 @@
-const TxtReader = require('./../txt-reader.js').TxtReader;
+const TxtReader = require('../txt-reader.js').TxtReader;
 var reader = new TxtReader();
 var file;
 
