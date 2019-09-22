@@ -1,6 +1,6 @@
 {
   "name": "txt-reader",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "TxtReader is a JavaScript library to read text file in browsers based on FileReader API. It can read very large, huge, giant files (GB+).",
   "main": "txt-reader.js",
   "scripts": {
