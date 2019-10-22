@@ -65,6 +65,7 @@
                     ></textarea>
                     <input type="checkbox" v-model="sporadicCustomize" id="sporadic-customize" />
                     <label for="sporadic-customize">Customize</label>
+                    <input type="file" id="map-file-input" v-on:change="mapFileChange" />
                 </div>
             </div>
             <div v-if="activeMethod.hasLineNumber">
@@ -110,6 +111,7 @@ import {
     SporadicLineItem,
     SporadicLinesMap
 } from "../txt-reader-common";
+import { verify } from "crypto";
 
 type Methods = {
     loadFile: MethodConfig;
@@ -155,6 +157,7 @@ export default class App extends Vue {
     countValue: string = "";
     txtReader: TxtReader = window.txtReader;
     file!: File;
+    mapFile!: File;
     running: boolean = false;
     progress: number = 0;
     activeMethodName: string = "loadFile";
@@ -569,6 +572,37 @@ export default class App extends Vue {
         }
     }
 
+    mapFileChange(event: Event) {
+        let mapFileInput = <HTMLInputElement>event.target;
+        if (mapFileInput.files && mapFileInput.files.length > 0) {
+            this.sporadicCustomize = false;
+            this.mapFile = mapFileInput.files[0];
+            var fr = new FileReader();
+            fr.onload = () => {
+                this.sporadicLineMap = JSON.parse(fr.result as string);
+                let verifyResult = true;
+                for (let i = 0; i < this.sporadicLineMap.length - 1; i++) {
+                    let prev = this.sporadicLineMap[i];
+                    let next = this.sporadicLineMap[i + 1];
+                    let pend =
+                        typeof prev === "number"
+                            ? prev
+                            : prev.end !== undefined
+                            ? prev.end
+                            : prev.start + prev.count - 1;
+                    let nstart = typeof next === "number" ? next : next.start;
+                    if (nstart < pend) {
+                        verifyResult = false;
+                        console.log(`Verify failed at ${i}`);
+                        break;
+                    }
+                }
+                this.sporadicMapString = `Using JSON file: ${this.mapFile.name}, item length: ${this.sporadicLineMap.length}, verify result: ${verifyResult}`;
+            };
+            fr.readAsText(this.mapFile);
+        }
+    }
+
     sporadicLinesMapChange(event: Event) {
         console.log(this);
     }
@@ -709,5 +743,9 @@ body {
     > div {
         padding: 3px;
     }
+}
+#sporadic-lines-map {
+    width: 400px;
+    height: 100px;
 }
 </style>
