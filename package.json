@@ -46,7 +46,7 @@
     "nightwatch": "^1.2.4",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.0",
-    "typescript": "^3.6.4",
+    "typescript": "^3.6.3",
     "vue": "^2.6.10",
     "vue-class-component": "^7.1.0",
     "vue-loader": "^15.7.1",
