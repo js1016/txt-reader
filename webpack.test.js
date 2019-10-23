@@ -25,6 +25,7 @@ module.exports = {
                 exclude: /node_modules/,
                 options: {
                     appendTsSuffixTo: [/\.vue$/],
+                    configFile: "./tests/tsconfig.json"
                 }
             },
             {
