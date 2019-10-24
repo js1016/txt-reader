@@ -127,15 +127,7 @@ function getStart(item: LinesRange | number): number {
 }
 
 function getEnd(item: LinesRange | number): number {
-    if (typeof item === 'number') {
-        return item;
-    } else {
-        if (item.end !== undefined) {
-            return item.end;
-        } else {
-            return item.start + item.count - 1;
-        }
-    }
+    return typeof item === 'number' ? item : item.end;
 }
 
 async function testIterateSporadicLines(browser: NightwatchAPI, testFile: TestFile, lineCount: number) {

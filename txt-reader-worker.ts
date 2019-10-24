@@ -1,6 +1,6 @@
 import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, SporadicLinesMap, IGetSporadicLinesResult, SporadicLineItem } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
 
 interface ILinePosition {
     line: number;
@@ -74,39 +74,12 @@ const mergeUint8Array = (x: Uint8Array, y: Uint8Array): Uint8Array => {
 };
 
 let isLineWithinLinesRange = (line: number, linesRange: LinesRange): boolean => {
-    let linesEnd = getLinesRangeEnd(linesRange);
-    return line >= linesRange.start && line <= linesEnd;
-};
-
-let getLinesRangeEnd = (linesRange: LinesRange): number => {
-    return linesRange.count !== undefined ? linesRange.start + linesRange.count - 1 : linesRange.end;
+    return line >= linesRange.start && line <= linesRange.end;
 };
 
 let getLinesRangeCount = (linesRange: LinesRange): number => {
-    return linesRange.count !== undefined ? linesRange.count : linesRange.end - linesRange.start + 1;
-}
-
-let getLinesRangeStart = (lineItem: SporadicLineItem): number => {
-    return typeof lineItem === 'number' ? lineItem : lineItem.start;
-}
-
-let getStartCountForSporadicLineItem = (item: SporadicLineItem): { start: number, count: number } => {
-    if (typeof item === 'number') {
-        return {
-            start: item,
-            count: 1
-        }
-    } else {
-        if (item.end !== undefined) {
-            return {
-                start: item.start,
-                count: item.end - item.start + 1
-            }
-        } else {
-            return item;
-        }
-    }
-}
+    return linesRange.end - linesRange.start + 1;
+};
 
 self.addEventListener('message', (event: MessageEvent) => {
     let req: IRequestMessage = event.data;
@@ -143,7 +116,7 @@ self.addEventListener('message', (event: MessageEvent) => {
             break;
         case 'getSporadicLines':
             if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.sporadicLinesMap, req.data.decode);
+                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.linesRanges, req.data.decode);
             }
             break;
         case 'iterateLines':
@@ -246,7 +219,7 @@ class Iterator {
     // processed sporadic lines
     public sporadicProcessed: number;
 
-    public sporadicLinesMap: SporadicLinesMap;
+    public linesRanges: LinesRanges;
 
     public isSporadicIterate: boolean;
 
@@ -279,7 +252,7 @@ class Iterator {
         this.map = [];
         this.lastMappedProgress = null;
         this.sporadicProcessed = 0;
-        this.sporadicLinesMap = [];
+        this.linesRanges = [];
         this.isSporadicIterate = false;
     }
 
@@ -313,34 +286,21 @@ class Iterator {
                     progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
                 } else {
                     progress = Math.round(this.sporadicProcessed / this.linesToIterate * 10000) / 100;
-                    let first = this.sporadicLinesMap[0];
+                    let first = this.linesRanges[0];
                     if (typeof first === 'number') {
                         if (first === this.currentLineNumber) {
-                            this.sporadicLinesMap.splice(0, 1);
+                            this.linesRanges.splice(0, 1);
                             match = true;
                         }
                     } else {
-                        if (first.count !== undefined) {
-                            if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.start + first.count - 1) {
-                                // within range
-                                if (first.count === 1) {
-                                    this.sporadicLinesMap.splice(0, 1);
-                                } else {
-                                    first.start++;
-                                    first.count--;
-                                }
-                                match = true;
+                        if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.end) {
+                            // within range
+                            if (first.start === first.end) {
+                                this.linesRanges.splice(0, 1);
+                            } else {
+                                first.start++;
                             }
-                        } else {
-                            if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.end) {
-                                // within range
-                                if (first.start === first.end) {
-                                    this.sporadicLinesMap.splice(0, 1);
-                                } else {
-                                    first.start++;
-                                }
-                                match = true;
-                            }
+                            match = true;
                         }
                     }
                     if (match) {
@@ -687,25 +647,25 @@ class TxtReaderWorker {
         });
     }
 
-    public setSporadicIterator(sporadicLinesMap: SporadicLinesMap) {
-        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+    public setSporadicIterator(linesRanges: LinesRanges) {
+        linesRanges = this.sortAndMergeLineMap(linesRanges);
         let sporadicTotal = 0;
-        for (let i = 0; i < sporadicLinesMap.length; i++) {
-            if (typeof sporadicLinesMap[i] === 'number') {
+        for (let i = 0; i < linesRanges.length; i++) {
+            if (typeof linesRanges[i] === 'number') {
                 sporadicTotal++;
             } else {
-                sporadicTotal += getLinesRangeCount(<LinesRange>sporadicLinesMap[i]);
+                sporadicTotal += getLinesRangeCount(<LinesRange>linesRanges[i]);
             }
         }
         this.iterator.linesToIterate = sporadicTotal;
         this.iterator.endOffset = this.file.size;
         this.iterator.isSporadicIterate = true;
-        this.iterator.sporadicLinesMap = sporadicLinesMap;
+        this.iterator.linesRanges = linesRanges;
         this.seekSporadic();
     }
 
-    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean) {
-        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+    public getSporadicLines(linesRanges: LinesRanges, decode: boolean) {
+        linesRanges = this.sortAndMergeLineMap(linesRanges);
         let result: IGetSporadicLinesResult[] = [];
         this.iterator.onEachLineInternal = function (line: Uint8Array) {
             result.push({
@@ -716,11 +676,11 @@ class TxtReaderWorker {
         this.iterator.onSeekComplete = function () {
             respondMessage(new ResponseMessage(result));
         }
-        this.setSporadicIterator(sporadicLinesMap);
+        this.setSporadicIterator(linesRanges);
     }
 
-    public iterateSporadicLines(config: IIteratorConfigMessage, sporadicLinesMap: SporadicLinesMap) {
-        sporadicLinesMap = this.sortAndMergeLineMap(sporadicLinesMap);
+    public iterateSporadicLines(config: IIteratorConfigMessage, linesRanges: LinesRanges) {
+        linesRanges = this.sortAndMergeLineMap(linesRanges);
         config = this.stringToFunction(config);
         let _this = this;
         this.iterator.bindEachLineFromConfig(config);
@@ -728,7 +688,7 @@ class TxtReaderWorker {
             this.eachLineScope = _this.removeFunctionsFromObject(this.eachLineScope);
             respondMessage(new ResponseMessage(this.eachLineScope));
         }
-        this.setSporadicIterator(sporadicLinesMap);
+        this.setSporadicIterator(linesRanges);
     }
 
     private seek() {
@@ -753,8 +713,8 @@ class TxtReaderWorker {
         if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
             complete.call(this);
         } else {
-            let first = this.iterator.sporadicLinesMap[0];
-            let start = getLinesRangeStart(first);
+            let first = this.iterator.linesRanges[0];
+            let start = typeof first === 'number' ? first : first.start;
             if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
                 this.iterator.offset += this.CHUNK_SIZE;
                 if (this.iterator.offset >= this.iterator.endOffset) {
@@ -768,7 +728,7 @@ class TxtReaderWorker {
                     this.fr.readAsArrayBuffer(slice);
                     return;
                 }
-            } else if (this.iterator.sporadicLinesMap.length > 0) {
+            } else if (this.iterator.linesRanges.length > 0) {
                 for (let i = 0; i < this.quickSearchMap.length; i++) {
                     let mapStart = this.quickSearchMap[i].line;
                     let mapEnd = i === this.quickSearchMap.length - 1 ? this.lineCount : this.quickSearchMap[i + 1].line - 1;
@@ -822,7 +782,7 @@ class TxtReaderWorker {
         });
     }
 
-    private sortAndMergeLineMap(lineMap: SporadicLinesMap): SporadicLinesMap {
+    private sortAndMergeLineMap(lineMap: LinesRanges): LinesRanges {
         lineMap.sort(function (a, b) {
             // sort lines in ascending order
             if (typeof a === 'number' && typeof b === 'number') {
@@ -854,16 +814,12 @@ class TxtReaderWorker {
                     i--;
                 }
             } else if (typeof current === 'number' && typeof prev === 'object') {
-                let prevEnd = getLinesRangeEnd(prev);
+                let prevEnd = prev.end;
                 if (isLineWithinLinesRange(current, prev)) {
                     lineMap.splice(i, 1);
                     i--;
                 } else if (current === prevEnd + 1) {
-                    if (prev.count !== undefined) {
-                        prev.count++;
-                    } else {
-                        prev.end = current;
-                    }
+                    prev.end = current;
                     lineMap.splice(i, 1);
                     i--;
                 }
@@ -873,14 +829,11 @@ class TxtReaderWorker {
                     i--;
                 }
             } else if (typeof current === 'object' && typeof prev === 'object') {
-                let currentEnd = getLinesRangeEnd(current);
-                let prevEnd = getLinesRangeEnd(prev);
+                let currentEnd = current.end;
+                let prevEnd = prev.end;
                 if (prevEnd >= current.start && prevEnd <= currentEnd) {
                     // overlap, remove the prev one
                     current.start = prev.start;
-                    if (current.count !== undefined) {
-                        current.count = currentEnd - current.start + 1;
-                    }
                     lineMap.splice(i - 1, 1);
                     i--;
                 } else if (current.start >= prev.start && currentEnd <= prevEnd) {
@@ -888,11 +841,7 @@ class TxtReaderWorker {
                     lineMap.splice(i, 1);
                     i--;
                 } else if (current.start === prevEnd + 1) {
-                    if (prev.count !== undefined) {
-                        prev.count += currentEnd - current.start + 1;
-                    } else {
-                        prev.end = currentEnd;
-                    }
+                    prev.end = currentEnd;
                     lineMap.splice(i, 1);
                     i--;
                 }

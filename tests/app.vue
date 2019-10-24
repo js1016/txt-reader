@@ -108,8 +108,7 @@ import { TxtReader, IIteratorConfig } from "../txt-reader";
 import { LinesRange } from "../txt-reader-common";
 import {
     IIteratorConfigMessage,
-    SporadicLineItem,
-    SporadicLinesMap
+    LinesRanges
 } from "../txt-reader-common";
 import { verify } from "crypto";
 
@@ -149,7 +148,7 @@ export default class App extends Vue {
     pageNumberValue: string = "1";
     sporadicMapString: string = "";
     sporadicCustomize: boolean = false;
-    sporadicLineMap: SporadicLinesMap = [];
+    sporadicLineMap: LinesRanges = [];
     iterateOption: string = "0";
     decode: boolean = true;
     startValue: string = "";
@@ -278,7 +277,7 @@ export default class App extends Vue {
         if (count >= this.txtReader.lineCount || count <= 0) {
             this.sporadicLineMap.push({
                 start: 1,
-                count: this.txtReader.lineCount
+                end: this.txtReader.lineCount
             });
         } else {
             if (count <= 10000) {
@@ -587,9 +586,7 @@ export default class App extends Vue {
                     let pend =
                         typeof prev === "number"
                             ? prev
-                            : prev.end !== undefined
-                            ? prev.end
-                            : prev.start + prev.count - 1;
+                            : prev.end;
                     let nstart = typeof next === "number" ? next : next.start;
                     if (nstart < pend) {
                         verifyResult = false;

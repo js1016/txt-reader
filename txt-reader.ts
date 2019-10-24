@@ -1,7 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, SporadicLinesMap, IGetSporadicLinesResult } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
 import { TextDecoder_Instance } from 'text-encoding-shim'
 import cloneDeep from "lodash.clonedeep"
 
@@ -290,9 +290,9 @@ export class TxtReader {
         });
     }
 
-    public getSporadicLines(sporadicLinesMap: SporadicLinesMap, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
+    public getSporadicLines(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
         return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', {
-            sporadicLinesMap: sporadicLinesMap,
+            linesRanges: linesRanges,
             decode: decode
         });
     }
@@ -305,10 +305,10 @@ export class TxtReader {
         });
     }
 
-    public iterateSporadicLines(config: IIteratorConfig, sporadicLinesMap: SporadicLinesMap): TxtReaderTask<IIterateLinesTaskResponse> {
+    public iterateSporadicLines(config: IIteratorConfig, linesRanges: LinesRanges): TxtReaderTask<IIterateLinesTaskResponse> {
         return this.newTask<IIterateLinesTaskResponse>('iterateSporadicLines', {
             config: this.getItertorConfigMessage(cloneDeep(config)),
-            lines: sporadicLinesMap
+            lines: linesRanges
         });
     }
 

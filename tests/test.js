@@ -172,17 +172,7 @@ function getStart(item) {
     }
 }
 function getEnd(item) {
-    if (typeof item === 'number') {
-        return item;
-    }
-    else {
-        if (item.end !== undefined) {
-            return item.end;
-        }
-        else {
-            return item.start + item.count - 1;
-        }
-    }
+    return typeof item === 'number' ? item : item.end;
 }
 function testIterateSporadicLines(browser, testFile, lineCount) {
     return __awaiter(this, void 0, void 0, function () {

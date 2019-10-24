@@ -45,7 +45,7 @@ a.iterateSporadicLines({
 
     },
     scope: {}
-}, [1, 2, 3, 4, { start: 1, count: 1 }]);
+}, [1, 2, 3, 4, { start: 1, end: 1 }]);
 
 a.getLines(1, 20).then(response => {
 })

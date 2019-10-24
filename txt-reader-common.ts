@@ -22,20 +22,9 @@ export interface IGetSporadicLinesResult {
     value: string | Uint8Array;
 }
 
-interface ILinesRange {
+export type LinesRange = {
     start: number;
-    count?: number;
-    end?: number;
+    end: number;
 }
 
-export type LinesRange = RequireOnlyOne<ILinesRange, 'count' | 'end'>;
-export type SporadicLineItem = number | LinesRange;
-export type SporadicLinesMap = (SporadicLineItem)[];
-
-type RequireOnlyOne<T, Keys extends keyof T = keyof T> =
-    Pick<T, Exclude<keyof T, Keys>>
-    & {
-        [K in Keys]-?:
-        Required<Pick<T, K>>
-        & Partial<Record<Exclude<Keys, K>, undefined>>
-    }[Keys]
+export type LinesRanges = (LinesRange | number)[];
