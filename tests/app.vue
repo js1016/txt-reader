@@ -4,7 +4,7 @@
             <input type="file" id="file-input" v-on:change="fileChange" />
             <div class="line-count">
                 Line count:
-                <span>{{txtReader.lineCount}}</span>
+                <span>{{lineCount}}</span>
             </div>
             <div
                 class="status"
@@ -22,7 +22,6 @@
                     :id="name"
                     :value="name"
                     v-model="activeMethodName"
-                    :disabled="!isFileLoaded&&name!=='loadFile'&&name!=='sniffLines'"
                 />
                 <label :for="name">{{value.signature}}</label>
             </template>
@@ -106,12 +105,9 @@ import Vue from "vue";
 import { Component, Prop, Watch } from "vue-property-decorator";
 import { TxtReader, IIteratorConfig } from "../txt-reader";
 import { LinesRange } from "../txt-reader-common";
-import {
-    IIteratorConfigMessage,
-    LinesRanges
-} from "../txt-reader-common";
-import { verify } from "crypto";
+import { IIteratorConfigMessage, LinesRanges } from "../txt-reader-common";
 
+let txtReader = window.txtReader;
 type Methods = {
     loadFile: MethodConfig;
     getLines: MethodConfig;
@@ -154,7 +150,7 @@ export default class App extends Vue {
     startValue: string = "";
     lineNumberValue: string = "";
     countValue: string = "";
-    txtReader: TxtReader = window.txtReader;
+    lineCount: number = txtReader.lineCount;
     file!: File;
     mapFile!: File;
     running: boolean = false;
@@ -274,26 +270,26 @@ export default class App extends Vue {
     onSporadicLinesChange(count: number) {
         this.sporadicCustomize = false;
         this.sporadicLineMap = [];
-        if (count >= this.txtReader.lineCount || count <= 0) {
+        if (count >= txtReader.lineCount || count <= 0) {
             this.sporadicLineMap.push({
                 start: 1,
-                end: this.txtReader.lineCount
+                end: txtReader.lineCount
             });
         } else {
             if (count <= 10000) {
                 let paraNumber = count + 1;
-                let each = this.txtReader.lineCount / paraNumber;
+                let each = txtReader.lineCount / paraNumber;
                 for (let i = 0; i < count; i++) {
                     let lineNumber = Math.floor((i + 1) * each);
-                    if (lineNumber > this.txtReader.lineCount) {
-                        lineNumber = this.txtReader.lineCount;
+                    if (lineNumber > txtReader.lineCount) {
+                        lineNumber = txtReader.lineCount;
                     } else if (lineNumber < 1) {
                         lineNumber = 1;
                     }
                     this.sporadicLineMap.push(lineNumber);
                 }
             } else {
-                let maxPerBlock = Math.floor(this.txtReader.lineCount / 10000);
+                let maxPerBlock = Math.floor(txtReader.lineCount / 10000);
                 let perBlockLength = Math.floor(count / 10000);
                 for (let i = 0; i < 10000; i++) {
                     let start = i * maxPerBlock + 1;
@@ -310,7 +306,7 @@ export default class App extends Vue {
                             i < this.sporadicLineMap.length - 1
                                 ? (this.sporadicLineMap[i + 1] as LinesRange)
                                       .start
-                                : this.txtReader.lineCount + 1;
+                                : txtReader.lineCount + 1;
                         if ((current.end as number) < nextStart - 1) {
                             if (i < this.sporadicLineMap.length - 1) {
                                 (current.end as number)++;
@@ -321,8 +317,8 @@ export default class App extends Vue {
                             } else {
                                 let tryEnd = (current.end as number) + rest;
                                 current.end =
-                                    tryEnd > this.txtReader.lineCount
-                                        ? this.txtReader.lineCount
+                                    tryEnd > txtReader.lineCount
+                                        ? txtReader.lineCount
                                         : tryEnd;
                             }
                         }
@@ -361,7 +357,7 @@ export default class App extends Vue {
     setChunkSize() {
         this.clearConsole();
         this.running = true;
-        this.txtReader
+        txtReader
             .setChunkSize(this.chunkSize)
             .then(response => {
                 this.running = false;
@@ -432,7 +428,7 @@ export default class App extends Vue {
     getLines() {
         this.running = true;
         let decode = this.decode;
-        this.txtReader
+        txtReader
             .getLines(this.start, this.count, decode)
             .progress(progress => {
                 this.progress = progress;
@@ -453,7 +449,7 @@ export default class App extends Vue {
         if (this.sporadicLineMap.length > 0) {
             let decode = this.decode;
             this.running = true;
-            this.txtReader
+            txtReader
                 .getSporadicLines(this.sporadicLineMap, decode)
                 .progress(progress => {
                     this.progress = progress;
@@ -486,7 +482,7 @@ export default class App extends Vue {
     iterateLines() {
         let hasRange = this.startValue !== "" && this.countValue !== "";
         this.running = true;
-        this.txtReader
+        txtReader
             .iterateLines(
                 this.getIteratorConfig(),
                 hasRange ? this.start : undefined,
@@ -510,7 +506,7 @@ export default class App extends Vue {
     iterateSporadicLines() {
         if (this.sporadicLineMap.length > 0) {
             this.running = true;
-            this.txtReader
+            txtReader
                 .iterateSporadicLines(
                     this.getIteratorConfig(),
                     this.sporadicLineMap
@@ -542,7 +538,7 @@ export default class App extends Vue {
         if (this.file) {
             let decode = this.decode;
             this.running = true;
-            this.txtReader
+            txtReader
                 .sniffLines(this.file, this.lineNumber, decode)
                 .progress(progress => {
                     this.progress = progress;
@@ -583,10 +579,7 @@ export default class App extends Vue {
                 for (let i = 0; i < this.sporadicLineMap.length - 1; i++) {
                     let prev = this.sporadicLineMap[i];
                     let next = this.sporadicLineMap[i + 1];
-                    let pend =
-                        typeof prev === "number"
-                            ? prev
-                            : prev.end;
+                    let pend = typeof prev === "number" ? prev : prev.end;
                     let nstart = typeof next === "number" ? next : next.start;
                     if (nstart < pend) {
                         verifyResult = false;
@@ -606,7 +599,7 @@ export default class App extends Vue {
 
     loadFile() {
         this.running = true;
-        this.txtReader
+        txtReader
             .loadFile(
                 this.file,
                 this.iterateOption !== "0"
@@ -619,6 +612,7 @@ export default class App extends Vue {
             .then(response => {
                 this.running = false;
                 console.log(response);
+                this.lineCount = response.result.lineCount;
                 this.log(
                     `Load file ${this.file.name} completed in ${response.timeTaken}ms`
                 );
@@ -698,12 +692,12 @@ export default class App extends Vue {
             this.echo(
                 `First line (${
                     scope.firstLineNumber
-                }): ${this.txtReader.utf8decoder.decode(scope.first)}`
+                }): ${txtReader.utf8decoder.decode(scope.first)}`
             );
             this.echo(
                 `Last line (${
                     scope.lastLineNumber
-                }): ${this.txtReader.utf8decoder.decode(scope.last)}`
+                }): ${txtReader.utf8decoder.decode(scope.last)}`
             );
         }
     }

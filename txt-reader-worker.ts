@@ -3,8 +3,10 @@ import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
 
 interface ILinePosition {
-    line: number;
-    offset: number;
+    start: number;
+    end: number;
+    startLine: number;
+    endLine: number;
 }
 
 interface IIterateLinesConfig {
@@ -199,7 +201,10 @@ class Iterator {
     public offset: number;
 
     // whether to create quicksearchmap, default to false
-    public createMap: boolean;
+    public buildIndex: boolean;
+
+    // size of each index range
+    public indexSize: number;
 
     // seek destination offset
     public endOffset: number;
@@ -230,7 +235,7 @@ class Iterator {
     // last progress
     public lastProgress: number | null;
 
-    public map: ILinePosition[];
+    public linesIndex: ILinePosition[];
 
     private lastMappedProgress: number | null;
 
@@ -240,7 +245,8 @@ class Iterator {
         this.onEachLine = null;
         this.eachLineScope = null;
         this.offset = 0;
-        this.createMap = false;
+        this.buildIndex = false;
+        this.indexSize = 0;
         this.endOffset = 0;
         this.linesToIterate = 0;
         this.linesProcessed = 0;
@@ -249,7 +255,12 @@ class Iterator {
         this.lastProgress = null;
         this.processedViewLength = 0;
         this.lineBreakLength = 0;
-        this.map = [];
+        this.linesIndex = [{
+            start: 0,
+            startLine: 1,
+            end: 0,
+            endLine: 0
+        }];
         this.lastMappedProgress = null;
         this.sporadicProcessed = 0;
         this.linesRanges = [];
@@ -311,14 +322,18 @@ class Iterator {
                 match = true;
                 this.linesProcessed++;
                 progress = Math.round(this.processedViewLength / this.endOffset * 10000) / 100;
-                if (this.createMap) {
-                    let currentProgress: number = Math.round(progress);
-                    if (this.lastMappedProgress === null ||
-                        this.lastMappedProgress < currentProgress) {
-                        this.lastMappedProgress = currentProgress;
-                        this.map.push({
-                            line: this.currentLineNumber,
-                            offset: this.processedViewLength
+                if (this.buildIndex) {
+                    let last = this.linesIndex[this.linesIndex.length - 1];
+                    let currentLineEnd = this.processedViewLength + lineData.length;
+                    if (last.end === 0 && (currentLineEnd - last.start > this.indexSize || currentLineEnd === this.endOffset || currentLineEnd + this.lineBreakLength === this.endOffset)) {
+                        last.end = currentLineEnd;
+                        last.endLine = this.currentLineNumber;
+                    } else if (last.end !== 0) {
+                        this.linesIndex.push({
+                            start: this.processedViewLength,
+                            startLine: this.currentLineNumber,
+                            end: 0,
+                            endLine: 0
                         });
                     }
                 }
@@ -368,11 +383,20 @@ class Iterator {
     }
 }
 
+enum LineBreakType {
+    CR,
+    CRLF,
+    LF,
+    UNKNOWN,
+    MIX
+}
+
 class TxtReaderWorker {
     public CHUNK_SIZE!: number;
     private file!: File;
     private fr!: FileReader;
-    private quickSearchMap!: ILinePosition[];
+    private linesIndex!: ILinePosition[];
+    private lineBreakType: LineBreakType = LineBreakType.UNKNOWN;
     private iterator!: Iterator;
     private lineCount!: number;
     private sniffLines!: (string | Uint8Array)[];
@@ -385,7 +409,7 @@ class TxtReaderWorker {
         this.CHUNK_SIZE = DEFAULT_CHUNK_SIZE;
         this.file = file;
         this.lineCount = 0;
-        this.quickSearchMap = [];
+        this.linesIndex = [];
         this.fr = new FileReader();
         this.fr.onload = () => {
             let view: Uint8Array = new Uint8Array(<ArrayBuffer>this.fr.result);
@@ -521,7 +545,8 @@ class TxtReaderWorker {
             }
         };
         this.iterator = new Iterator();
-        this.iterator.createMap = true;
+        this.iterator.buildIndex = true;
+        this.iterator.indexSize = Math.round(file.size / 1000);
         if (sniffConfig) {
             if (sniffConfig.lineNumber < 1) {
                 respondMessage(new ResponseMessage(false, 'Sniff line number is invalid.'));
@@ -529,7 +554,7 @@ class TxtReaderWorker {
             }
             this.sniffLines = [];
             this.iterator.linesToIterate = sniffConfig.lineNumber;
-            this.iterator.createMap = false;
+            this.iterator.buildIndex = false;
         }
         this.iterator.endOffset = this.file.size;
         if (onNewLineConfig) {
@@ -543,7 +568,8 @@ class TxtReaderWorker {
             }
         }, () => {
             if (!sniffConfig) {
-                this.quickSearchMap = this.iterator.map;
+                this.linesIndex = this.iterator.linesIndex;
+                console.log('linesIndex: ', this.linesIndex);
                 let result: any = {
                     lineCount: this.lineCount
                 };
@@ -571,17 +597,17 @@ class TxtReaderWorker {
         } else {
             let endLineNumber: number = start + count - 1;
             endLineNumber = endLineNumber > this.lineCount ? this.lineCount : endLineNumber;
-            for (let i: number = 0; i < this.quickSearchMap.length; i++) {
-                if (start >= this.quickSearchMap[i].line && (i === this.quickSearchMap.length - 1 || start < this.quickSearchMap[i + 1].line)) {
-                    this.iterator.offset = this.quickSearchMap[i].offset;
-                    this.iterator.currentLineNumber = this.quickSearchMap[i].line;
-                }
-                if (endLineNumber < this.quickSearchMap[i].line && (i === 0 || endLineNumber >= this.quickSearchMap[i - 1].line)) {
-                    this.iterator.endOffset = this.quickSearchMap[i].offset;
-                } else {
-                    this.iterator.endOffset = this.file.size;
-                }
-            }
+            // for (let i: number = 0; i < this.linesIndex.length; i++) {
+            //     if (start >= this.linesIndex[i].line && (i === this.linesIndex.length - 1 || start < this.linesIndex[i + 1].line)) {
+            //         this.iterator.offset = this.linesIndex[i].offset;
+            //         this.iterator.currentLineNumber = this.linesIndex[i].line;
+            //     }
+            //     if (endLineNumber < this.linesIndex[i].line && (i === 0 || endLineNumber >= this.linesIndex[i - 1].line)) {
+            //         this.iterator.endOffset = this.linesIndex[i].offset;
+            //     } else {
+            //         this.iterator.endOffset = this.file.size;
+            //     }
+            // }
             this.iterator.linesToIterate = count;
             this.iterator.startLineNumber = start;
             return true;
@@ -729,18 +755,18 @@ class TxtReaderWorker {
                     return;
                 }
             } else if (this.iterator.linesRanges.length > 0) {
-                for (let i = 0; i < this.quickSearchMap.length; i++) {
-                    let mapStart = this.quickSearchMap[i].line;
-                    let mapEnd = i === this.quickSearchMap.length - 1 ? this.lineCount : this.quickSearchMap[i + 1].line - 1;
-                    if (start >= mapStart && start <= mapEnd) {
-                        let offset = this.quickSearchMap[i].offset;
-                        this.iterator.offset = offset;
-                        let slice: Blob = this.file.slice(offset, offset + this.CHUNK_SIZE);
-                        this.iterator.currentLineNumber = this.quickSearchMap[i].line;
-                        this.fr.readAsArrayBuffer(slice);
-                        return;
-                    }
-                }
+                // for (let i = 0; i < this.linesIndex.length; i++) {
+                //     let mapStart = this.linesIndex[i].line;
+                //     let mapEnd = i === this.linesIndex.length - 1 ? this.lineCount : this.linesIndex[i + 1].line - 1;
+                //     if (start >= mapStart && start <= mapEnd) {
+                //         let offset = this.linesIndex[i].offset;
+                //         this.iterator.offset = offset;
+                //         let slice: Blob = this.file.slice(offset, offset + this.CHUNK_SIZE);
+                //         this.iterator.currentLineNumber = this.linesIndex[i].line;
+                //         this.fr.readAsArrayBuffer(slice);
+                //         return;
+                //     }
+                // }
                 // out of range
                 complete.call(this);
             }

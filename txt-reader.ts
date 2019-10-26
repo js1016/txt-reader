@@ -1,7 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult, LinesRange } from './txt-reader-common'
 import { TextDecoder_Instance } from 'text-encoding-shim'
 import cloneDeep from "lodash.clonedeep"
 
@@ -21,6 +21,13 @@ interface ISniffLinesTaskResponse extends ITaskResponse {
 
 interface IGetLinesTaskResponse extends ITaskResponse {
     result: (string | Uint8Array)[];
+}
+
+interface IGetLines2TaskResponse extends ITaskResponse {
+    result: {
+        range: LinesRange | number;
+        contents: (string | Uint8Array)[];
+    }[]
 }
 
 interface IGetSporadicLinesTaskResponse extends ITaskResponse {
@@ -203,7 +210,7 @@ export class TxtReader {
     private verboseLogging: boolean;
     public utf8decoder: TextDecoder_Instance;
     public lineCount: number;
-    private file: File | null;
+    private readonly file: File | null;
 
     constructor() {
         this.taskList = [];
@@ -212,11 +219,15 @@ export class TxtReader {
         this.verboseLogging = false;
         this.utf8decoder = new TextDecoder('utf-8');
         this.lineCount = 0;
-        Object.defineProperty(this, 'lineCount', {
-            value: 0,
-            writable: false
-        });
         this.file = null;
+        Object.defineProperties(this, {
+            file: {
+                writable: false
+            },
+            lineCount: {
+                writable: false
+            }
+        });
         this.worker = new Worker('txt-reader-worker.js?i=' + new Date().getTime());
         this.worker.addEventListener('message', (event: IResponseMessageEvent) => {
             if (this.verboseLogging) {
@@ -252,10 +263,13 @@ export class TxtReader {
     }
 
     public loadFile(file: File, config?: IIteratorConfig): TxtReaderTask<ILoadFileTaskResponse> {
-        this.file = file;
-        Object.defineProperty(this, 'lineCount', {
-            value: 0,
-            writable: false
+        Object.defineProperties(this, {
+            file: {
+                value: null
+            },
+            lineCount: {
+                value: 0
+            }
         });
         let data: any = {
             file: file
@@ -264,9 +278,13 @@ export class TxtReader {
             data.config = this.getItertorConfigMessage(cloneDeep(config));
         }
         return this.newTask<ILoadFileTaskResponse>('loadFile', data).then((response) => {
-            Object.defineProperty(this, 'lineCount', {
-                value: response.result.lineCount,
-                writable: false
+            Object.defineProperties(this, {
+                lineCount: {
+                    value: response.result.lineCount
+                },
+                file: {
+                    value: file
+                }
             });
         });
     }
@@ -280,7 +298,20 @@ export class TxtReader {
         return this.newTask('enableVerbose');
     }
 
+    public getLines2(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetLines2TaskResponse> {
+        if (!this.file) {
+            return this.newTask<IGetLines2TaskResponse>('getLines', new Error('TxtReader has not loaded a file yet.'));
+        }
+        return this.newTask<IGetLines2TaskResponse>('getLines', linesRanges).then((response) => {
+
+        });
+
+    }
+
     public getLines(start: number, count: number, decode: boolean = true): TxtReaderTask<IGetLinesTaskResponse> {
+        if (!this.file) {
+            return this.newTask<IGetLinesTaskResponse>('getLines', new Error('TxtReader has not loaded a file yet.'));
+        }
         return this.newTask<IGetLinesTaskResponse>('getLines', { start: start, count: count }).then((response) => {
             for (let i = 0; i < response.result.length; i++) {
                 if (decode) {
@@ -298,6 +329,9 @@ export class TxtReader {
     }
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
+        if (!this.file) {
+            return this.newTask<IGetLinesTaskResponse>('getLines', new Error('TxtReader has not loaded a file yet.'));
+        }
         return this.newTask<IIterateLinesTaskResponse>('iterateLines', {
             config: this.getItertorConfigMessage(cloneDeep(config)),
             start: start !== undefined ? start : null,
@@ -365,7 +399,20 @@ export class TxtReader {
 
     private runTask(task: TxtReaderTask<any>) {
         this.runningTask = task;
-        this.worker.postMessage(task.requestMessage);
+        if (Object.prototype.toString.call(task.requestMessage.data) !== '[object Error]') {
+            this.worker.postMessage(task.requestMessage);
+        } else {
+            window.setTimeout(() => {
+                let response: IResponseMessage = {
+                    success: false,
+                    message: (task.requestMessage.data as Error).message,
+                    result: null,
+                    done: true,
+                    taskId: task.id
+                };
+                this.completeTask(response);
+            }, 0);
+        }
         task.run();
     }
 
