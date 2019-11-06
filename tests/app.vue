@@ -17,12 +17,7 @@
         </div>
         <div id="methods">
             <template v-for="(value, name) in methods">
-                <input
-                    type="radio"
-                    :id="name"
-                    :value="name"
-                    v-model="activeMethodName"
-                />
+                <input type="radio" :id="name" :value="name" v-model="activeMethodName" />
                 <label :for="name">{{value.signature}}</label>
             </template>
         </div>
@@ -48,21 +43,21 @@
                     >Get first line and last line</option>
                 </select>
             </div>
-            <div v-if="activeMethod.isSporadic">
+            <div v-if="activeMethod.acceptsLinesRanges">
                 <div>
-                    <span>Sporaidc Lines:</span>
-                    <input type="number" id="sporadic-line-count" v-model="sporadicLinesValue" />
+                    <span>Auto generate linesRanges by lineNumber:</span>
+                    <input type="number" v-model="autoGenerateLineNumberStr" />
                     <span>lines</span>
                 </div>
                 <div>
-                    <span>sporadicLinesMap:</span>
+                    <span>linesRanges:</span>
                     <textarea
-                        id="sporadic-lines-map"
-                        :disabled="!sporadicCustomize"
-                        v-model="sporadicMapString"
-                        v-on:change="sporadicLinesMapChange"
+                        id="lines-ranges"
+                        :disabled="!customizedLinesRanges"
+                        v-model="linesRangesString"
+                        v-on:change="linesRangesChange"
                     ></textarea>
-                    <input type="checkbox" v-model="sporadicCustomize" id="sporadic-customize" />
+                    <input type="checkbox" v-model="customizedLinesRanges" id="sporadic-customize" />
                     <label for="sporadic-customize">Customize</label>
                     <input type="file" id="map-file-input" v-on:change="mapFileChange" />
                 </div>
@@ -111,6 +106,7 @@ let txtReader = window.txtReader;
 type Methods = {
     loadFile: MethodConfig;
     getLines: MethodConfig;
+    getLines2: MethodConfig;
     getSporadicLines: MethodConfig;
     iterateLines: MethodConfig;
     iterateSporadicLines: MethodConfig;
@@ -122,7 +118,7 @@ interface MethodConfig {
     signature: string;
     hasStartCount: boolean;
     iteratable: boolean;
-    isSporadic: boolean;
+    acceptsLinesRanges: boolean;
     hasDecode: boolean;
     hasLineNumber: boolean;
 }
@@ -140,11 +136,11 @@ export default class App extends Vue {
     pageSize: number = 1000;
     getResults: GetResults = [];
     isFileLoaded: boolean = false;
-    sporadicLinesValue: string = "";
+    autoGenerateLineNumberStr: string = "";
     pageNumberValue: string = "1";
-    sporadicMapString: string = "";
-    sporadicCustomize: boolean = false;
-    sporadicLineMap: LinesRanges = [];
+    linesRangesString: string = "";
+    customizedLinesRanges: boolean = false;
+    linesRanges: LinesRanges = [];
     iterateOption: string = "0";
     decode: boolean = true;
     startValue: string = "";
@@ -162,15 +158,23 @@ export default class App extends Vue {
             signature: "loadFile(file[ ,iteratorConfig])",
             hasStartCount: false,
             iteratable: true,
-            isSporadic: false,
+            acceptsLinesRanges: false,
             hasDecode: false,
+            hasLineNumber: false
+        },
+        getLines2: {
+            signature: "getLines2(linesRanges[, decode])",
+            hasStartCount: false,
+            iteratable: false,
+            acceptsLinesRanges: true,
+            hasDecode: true,
             hasLineNumber: false
         },
         getLines: {
             signature: "getLines(start, count[, decode])",
             hasStartCount: true,
             iteratable: false,
-            isSporadic: false,
+            acceptsLinesRanges: false,
             hasDecode: true,
             hasLineNumber: false
         },
@@ -178,7 +182,7 @@ export default class App extends Vue {
             signature: "getSporadicLines(sporadicLinesMap[, decode])",
             hasStartCount: false,
             iteratable: false,
-            isSporadic: true,
+            acceptsLinesRanges: true,
             hasDecode: true,
             hasLineNumber: false
         },
@@ -186,7 +190,7 @@ export default class App extends Vue {
             signature: "iterateLines(iteratorConfig[, start, count])",
             hasStartCount: true,
             iteratable: true,
-            isSporadic: false,
+            acceptsLinesRanges: false,
             hasDecode: false,
             hasLineNumber: false
         },
@@ -194,7 +198,7 @@ export default class App extends Vue {
             signature: "iterateSporadicLines(iteratorConfig, sporadicLinesMap)",
             hasStartCount: false,
             iteratable: true,
-            isSporadic: true,
+            acceptsLinesRanges: true,
             hasDecode: false,
             hasLineNumber: false
         },
@@ -202,7 +206,7 @@ export default class App extends Vue {
             signature: "sniffLines(file, lineNumber[, decode])",
             hasStartCount: false,
             iteratable: false,
-            isSporadic: false,
+            acceptsLinesRanges: false,
             hasDecode: true,
             hasLineNumber: true
         }
@@ -236,8 +240,8 @@ export default class App extends Vue {
         return Number(this.lineNumberValue);
     }
 
-    get sporadicLines(): number {
-        return Number(this.sporadicLinesValue);
+    get autoGenerateLineNumber(): number {
+        return Number(this.autoGenerateLineNumberStr);
     }
 
     @Watch("getResults")
@@ -257,21 +261,21 @@ export default class App extends Vue {
         }
     }
 
-    @Watch("sporadicMapString")
-    onSporadicMapStringChange(value: string) {
-        if (this.sporadicCustomize) {
+    @Watch("linesRangesString")
+    onLinesRangesStringChange(value: string) {
+        if (this.customizedLinesRanges) {
             try {
-                this.sporadicLineMap = json5.parse(value);
+                this.linesRanges = json5.parse(value);
             } catch {}
         }
     }
 
-    @Watch("sporadicLines")
-    onSporadicLinesChange(count: number) {
-        this.sporadicCustomize = false;
-        this.sporadicLineMap = [];
+    @Watch("autoGenerateLineNumber")
+    onAutoGenerateLineNumberChange(count: number) {
+        this.customizedLinesRanges = false;
+        this.linesRanges = [];
         if (count >= txtReader.lineCount || count <= 0) {
-            this.sporadicLineMap.push({
+            this.linesRanges.push({
                 start: 1,
                 end: txtReader.lineCount
             });
@@ -286,29 +290,28 @@ export default class App extends Vue {
                     } else if (lineNumber < 1) {
                         lineNumber = 1;
                     }
-                    this.sporadicLineMap.push(lineNumber);
+                    this.linesRanges.push(lineNumber);
                 }
             } else {
                 let maxPerBlock = Math.floor(txtReader.lineCount / 10000);
                 let perBlockLength = Math.floor(count / 10000);
                 for (let i = 0; i < 10000; i++) {
                     let start = i * maxPerBlock + 1;
-                    this.sporadicLineMap.push({
+                    this.linesRanges.push({
                         start: start,
                         end: start + perBlockLength - 1
                     });
                 }
                 let rest = count - perBlockLength * 10000;
                 if (rest) {
-                    for (let i = 0; i < this.sporadicLineMap.length; i++) {
-                        let current = this.sporadicLineMap[i] as LinesRange;
+                    for (let i = 0; i < this.linesRanges.length; i++) {
+                        let current = this.linesRanges[i] as LinesRange;
                         let nextStart =
-                            i < this.sporadicLineMap.length - 1
-                                ? (this.sporadicLineMap[i + 1] as LinesRange)
-                                      .start
+                            i < this.linesRanges.length - 1
+                                ? (this.linesRanges[i + 1] as LinesRange).start
                                 : txtReader.lineCount + 1;
                         if ((current.end as number) < nextStart - 1) {
-                            if (i < this.sporadicLineMap.length - 1) {
+                            if (i < this.linesRanges.length - 1) {
                                 (current.end as number)++;
                                 rest--;
                                 if (rest === 0) {
@@ -326,7 +329,7 @@ export default class App extends Vue {
                 }
             }
         }
-        this.sporadicMapString = JSON.stringify(this.sporadicLineMap);
+        this.linesRangesString = JSON.stringify(this.linesRanges);
     }
 
     prev() {
@@ -405,6 +408,8 @@ export default class App extends Vue {
             case "sniffLines":
                 this.sniffLines();
                 break;
+            case "getLiens2":
+                break;
         }
     }
 
@@ -445,12 +450,28 @@ export default class App extends Vue {
             });
     }
 
-    getSporadicLines() {
-        if (this.sporadicLineMap.length > 0) {
+    getLines2() {
+        if (this.linesRanges.length > 0) {
             let decode = this.decode;
             this.running = true;
             txtReader
-                .getSporadicLines(this.sporadicLineMap, decode)
+                .getLines2(this.linesRanges, decode)
+                .progress(progress => {
+                    this.progress = progress;
+                })
+                .then(response => {
+                    this.running = false;
+                    console.log(response);
+                });
+        }
+    }
+
+    getSporadicLines() {
+        if (this.linesRanges.length > 0) {
+            let decode = this.decode;
+            this.running = true;
+            txtReader
+                .getSporadicLines(this.linesRanges, decode)
                 .progress(progress => {
                     this.progress = progress;
                 })
@@ -504,12 +525,12 @@ export default class App extends Vue {
     }
 
     iterateSporadicLines() {
-        if (this.sporadicLineMap.length > 0) {
+        if (this.linesRanges.length > 0) {
             this.running = true;
             txtReader
                 .iterateSporadicLines(
                     this.getIteratorConfig(),
-                    this.sporadicLineMap
+                    this.linesRanges
                 )
                 .progress(progress => {
                     this.progress = progress;
@@ -570,15 +591,15 @@ export default class App extends Vue {
     mapFileChange(event: Event) {
         let mapFileInput = <HTMLInputElement>event.target;
         if (mapFileInput.files && mapFileInput.files.length > 0) {
-            this.sporadicCustomize = false;
+            this.customizedLinesRanges = false;
             this.mapFile = mapFileInput.files[0];
             var fr = new FileReader();
             fr.onload = () => {
-                this.sporadicLineMap = JSON.parse(fr.result as string);
+                this.linesRanges = JSON.parse(fr.result as string);
                 let verifyResult = true;
-                for (let i = 0; i < this.sporadicLineMap.length - 1; i++) {
-                    let prev = this.sporadicLineMap[i];
-                    let next = this.sporadicLineMap[i + 1];
+                for (let i = 0; i < this.linesRanges.length - 1; i++) {
+                    let prev = this.linesRanges[i];
+                    let next = this.linesRanges[i + 1];
                     let pend = typeof prev === "number" ? prev : prev.end;
                     let nstart = typeof next === "number" ? next : next.start;
                     if (nstart < pend) {
@@ -587,13 +608,13 @@ export default class App extends Vue {
                         break;
                     }
                 }
-                this.sporadicMapString = `Using JSON file: ${this.mapFile.name}, item length: ${this.sporadicLineMap.length}, verify result: ${verifyResult}`;
+                this.linesRangesString = `Using JSON file: ${this.mapFile.name}, item length: ${this.linesRanges.length}, verify result: ${verifyResult}`;
             };
             fr.readAsText(this.mapFile);
         }
     }
 
-    sporadicLinesMapChange(event: Event) {
+    linesRangesChange(event: Event) {
         console.log(this);
     }
 
@@ -607,6 +628,7 @@ export default class App extends Vue {
                     : undefined
             )
             .progress(progress => {
+                console.log(`Progress update: ${progress}`);
                 this.progress = progress;
             })
             .then(response => {
@@ -735,7 +757,7 @@ body {
         padding: 3px;
     }
 }
-#sporadic-lines-map {
+#lines-ranges {
     width: 400px;
     height: 100px;
 }
