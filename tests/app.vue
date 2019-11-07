@@ -408,7 +408,8 @@ export default class App extends Vue {
             case "sniffLines":
                 this.sniffLines();
                 break;
-            case "getLiens2":
+            case "getLines2":
+                this.getLines2();
                 break;
         }
     }
@@ -462,6 +463,10 @@ export default class App extends Vue {
                 .then(response => {
                     this.running = false;
                     console.log(response);
+                })
+                .catch(reason => {
+                    this.running = false;
+                    this.error(`getLine2 encountered error: ${reason}`);
                 });
         }
     }
@@ -595,7 +600,9 @@ export default class App extends Vue {
             this.mapFile = mapFileInput.files[0];
             var fr = new FileReader();
             fr.onload = () => {
-                this.linesRanges = JSON.parse(fr.result as string);
+                let linesRanges = JSON.parse(fr.result as string);
+                Object.freeze(linesRanges);
+                this.linesRanges = linesRanges;
                 let verifyResult = true;
                 for (let i = 0; i < this.linesRanges.length - 1; i++) {
                     let prev = this.linesRanges[i];
@@ -628,7 +635,6 @@ export default class App extends Vue {
                     : undefined
             )
             .progress(progress => {
-                console.log(`Progress update: ${progress}`);
                 this.progress = progress;
             })
             .then(response => {

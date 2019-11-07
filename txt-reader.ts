@@ -300,10 +300,10 @@ export class TxtReader {
 
     public getLines2(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetLines2TaskResponse> {
         if (!this.file) {
-            return this.newTask<IGetLines2TaskResponse>('getLines', new Error('TxtReader has not loaded a file yet.'));
+            return this.newTask<IGetLines2TaskResponse>('getLines2', new Error('TxtReader has not loaded a file yet.'));
         }
-        return this.newTask<IGetLines2TaskResponse>('getLines', linesRanges).then((response) => {
-
+        console.log('getlines2', linesRanges);
+        return this.newTask<IGetLines2TaskResponse>('getLines2', linesRanges).then((response) => {
         });
 
     }

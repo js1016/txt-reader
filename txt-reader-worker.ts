@@ -2,11 +2,12 @@ import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
 import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
 
-interface ILinePosition {
+interface ILineIndexRange {
     start: number;
     end: number;
     startLine: number;
     endLine: number;
+    linesRanges: LinesRanges;
 }
 
 interface IIterateLinesConfig {
@@ -83,6 +84,14 @@ let getLinesRangeCount = (linesRange: LinesRange): number => {
     return linesRange.end - linesRange.start + 1;
 };
 
+let getStart = (linesRange: LinesRange | number): number => {
+    return typeof linesRange === 'number' ? linesRange : linesRange.start;
+};
+
+let getEnd = (linesRange: LinesRange | number): number => {
+    return typeof linesRange === 'number' ? linesRange : linesRange.end;
+};
+
 self.addEventListener('message', (event: MessageEvent) => {
     let req: IRequestMessage = event.data;
     if (verboseLogging) {
@@ -116,6 +125,11 @@ self.addEventListener('message', (event: MessageEvent) => {
                 (<TxtReaderWorker>txtReaderWorker).getLines(req.data.start, req.data.count);
             }
             break;
+        case 'getLines2':
+            if (validateWorker()) {
+                (<TxtReaderWorker>txtReaderWorker).getLines2(req.data);
+                break;
+            }
         case 'getSporadicLines':
             if (validateWorker()) {
                 (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.linesRanges, req.data.decode);
@@ -233,9 +247,9 @@ class Iterator {
     public lineBreakLength: number;
 
     // last progress
-    public lastProgress: number | null;
+    public lastProgress: number;
 
-    public linesIndex: ILinePosition[];
+    public linesIndex: ILineIndexRange[];
 
     private lastMappedProgress: number | null;
 
@@ -252,14 +266,15 @@ class Iterator {
         this.linesProcessed = 0;
         this.currentLineNumber = 1;
         this.startLineNumber = 0;
-        this.lastProgress = null;
+        this.lastProgress = 0;
         this.processedViewLength = 0;
         this.lineBreakLength = 0;
         this.linesIndex = [{
             start: 0,
             startLine: 1,
             end: 0,
-            endLine: 0
+            endLine: 0,
+            linesRanges: []
         }];
         this.lastMappedProgress = null;
         this.sporadicProcessed = 0;
@@ -278,6 +293,84 @@ class Iterator {
     public isPartialIterate(): boolean {
         // is partial iterate or is sporadic iterate
         return this.linesToIterate > 0;
+    }
+
+    public setRanges(linesRanges: LinesRanges, indexes: ILineIndexRange[]) {
+        for (let i = 0; i < indexes.length; i++) {
+            indexes[i].linesRanges = [];
+        }
+        for (let i = 0; i < indexes.length; i++) {
+            let index = indexes[i];
+            for (let j = 0; j < linesRanges.length; j++) {
+                let range = linesRanges[j];
+                if (typeof range === 'number') {
+                    if (range >= index.startLine && range <= index.endLine) {
+                        addToIndexRanges(range, index.linesRanges);
+                        linesRanges.splice(j, 1);
+                        j--;
+                    }
+                } else {
+                    if (range.end >= index.startLine && range.start <= index.endLine) {
+                        // has overlap
+                        addToIndexRanges(range, index.linesRanges);
+                    }
+                }
+
+            }
+        }
+
+        function addToIndexRanges(range: number | LinesRange, indexRanges: LinesRanges): void | LinesRange {
+            let isNumber = typeof range === 'number';
+            let rangeStart = getStart(range);
+            let rangeEnd = getEnd(range);
+            let lastIndexRange = indexRanges.length ? indexRanges[indexRanges.length - 1] : null;
+            if (lastIndexRange === null) {
+                // first indexRange
+                indexRanges.push(range);
+                return;
+            } else {
+                let lastEnd = getEnd(lastIndexRange);
+                if (rangeStart > lastEnd + 1) {
+                    // [...,6 | {5,6}] + [8 | {8,9}], just append range
+                    indexRanges.push(range);
+                    return;
+                } else if (rangeStart >= lastEnd) {
+                    // 1: [...,6] + 6
+                    // 2: [...,6] + {6,7} = [...,{6,7}]
+                    // 2: [...,6] + 7 = [...,{6,7}]
+                    // 2: [...,6] + {7,8} = [...,{6,8}]
+                    // 1: [...,{5,6}] + 6
+                    // 3: [...,{5,6}] + {6,7} = [...,{5,7}]
+                    // 3: [...,{5,6}] + 7 = [...,{5,7}]
+                    // 3: [...,{5,6}] + {7,8} = [...,{5,8}]
+
+                    if (isNumber) {
+                        // 1
+                        return;
+                    } else if (typeof lastIndexRange === 'number') {
+                        // 2
+                        indexRanges[indexRanges.length - 1] = {
+                            start: lastIndexRange,
+                            end: rangeEnd
+                        };
+                        return;
+                    } else {
+                        // 3
+                        lastIndexRange.end = rangeEnd;
+                        return;
+                    }
+                }
+            }
+            for (let i = 0; i < indexRanges.length; i++) {
+                let currentRange = indexRanges[i];
+                let currentEnd = getEnd(currentRange);
+                let nextStart = i < indexRanges.length - 1 ? getStart(indexRanges[i + 1]) : null;
+                if (isNumber) {
+
+                }
+
+            }
+        }
     }
 
     public hitLine(lineData: Uint8Array): void {
@@ -323,17 +416,25 @@ class Iterator {
                 this.linesProcessed++;
                 progress = Math.round(this.processedViewLength / this.endOffset * 10000) / 100;
                 if (this.buildIndex) {
+                    // build index - only triggered when loadFile
                     let last = this.linesIndex[this.linesIndex.length - 1];
                     let currentLineEnd = this.processedViewLength + lineData.length;
                     if (last.end === 0 && (currentLineEnd - last.start > this.indexSize || currentLineEnd === this.endOffset || currentLineEnd + this.lineBreakLength === this.endOffset)) {
                         last.end = currentLineEnd;
                         last.endLine = this.currentLineNumber;
+                        let progress = Math.round(currentLineEnd / this.endOffset * 100);
+                        if (progress - this.lastProgress >= 1) {
+                            respondMessage(createProgressResponseMessage(progress));
+                            this.lastProgress = progress;
+                        }
                     } else if (last.end !== 0) {
+                        let isLast = this.processedViewLength + lineData.length + this.lineBreakLength >= this.endOffset;
                         this.linesIndex.push({
                             start: this.processedViewLength,
                             startLine: this.currentLineNumber,
-                            end: 0,
-                            endLine: 0
+                            end: isLast ? this.processedViewLength + lineData.length : 0,
+                            endLine: isLast ? this.currentLineNumber : 0,
+                            linesRanges: []
                         });
                     }
                 }
@@ -362,7 +463,7 @@ class Iterator {
     }
 
     public shouldReportProgress(currentProgress: number): boolean {
-        if (this.lastProgress === null) {
+        if (this.lastProgress === 0) {
             return true;
         } else if (currentProgress - this.lastProgress > 5) {
             return true;
@@ -395,7 +496,7 @@ class TxtReaderWorker {
     public CHUNK_SIZE!: number;
     private file!: File;
     private fr!: FileReader;
-    private linesIndex!: ILinePosition[];
+    private linesIndex!: ILineIndexRange[];
     private lineBreakType: LineBreakType = LineBreakType.UNKNOWN;
     private iterator!: Iterator;
     private lineCount!: number;
@@ -531,10 +632,10 @@ class TxtReaderWorker {
                 }
             }
 
-            if (!iterator.isPartialIterate()) {
-                let progress: number = Math.round(iterator.offset / this.file.size * 10000) / 100;
-                respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
-            }
+            // if (!iterator.isPartialIterate()) {
+            //     let progress: number = Math.round(iterator.offset / this.file.size * 10000) / 100;
+            //     respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
+            // }
 
             iterator.lineBreakLength = 0;
             if (this.iterator.isSporadicIterate) {
@@ -806,6 +907,13 @@ class TxtReaderWorker {
                 respondMessage(new ResponseMessage(lines));
             }
         });
+    }
+
+    public getLines2(linesRanges: LinesRanges): void {
+        this.iterator = new Iterator();
+        this.iterator.setRanges(linesRanges, this.linesIndex);
+        console.log(this.linesIndex);
+        debugger;
     }
 
     private sortAndMergeLineMap(lineMap: LinesRanges): LinesRanges {
