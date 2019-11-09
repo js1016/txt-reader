@@ -7,7 +7,14 @@ interface ILineIndexRange {
     end: number;
     startLine: number;
     endLine: number;
-    linesRanges: LinesRanges;
+}
+
+interface ISeekRange {
+    start: number;
+    end: number;
+    startLine: number;
+    endLine: number;
+    iterateRanges: LinesRanges;
 }
 
 interface IIterateLinesConfig {
@@ -238,7 +245,9 @@ class Iterator {
     // processed sporadic lines
     public sporadicProcessed: number;
 
-    public linesRanges: LinesRanges;
+    public iterateRanges: LinesRanges;
+
+    public seekRanges: ISeekRange[];
 
     public isSporadicIterate: boolean;
 
@@ -250,8 +259,6 @@ class Iterator {
     public lastProgress: number;
 
     public linesIndex: ILineIndexRange[];
-
-    private lastMappedProgress: number | null;
 
     constructor() {
         this.lineView = new Uint8Array(0);
@@ -273,12 +280,11 @@ class Iterator {
             start: 0,
             startLine: 1,
             end: 0,
-            endLine: 0,
-            linesRanges: []
+            endLine: 0
         }];
-        this.lastMappedProgress = null;
         this.sporadicProcessed = 0;
-        this.linesRanges = [];
+        this.iterateRanges = [];
+        this.seekRanges = [];
         this.isSporadicIterate = false;
     }
 
@@ -295,82 +301,226 @@ class Iterator {
         return this.linesToIterate > 0;
     }
 
-    public setRanges(linesRanges: LinesRanges, indexes: ILineIndexRange[]) {
-        for (let i = 0; i < indexes.length; i++) {
-            indexes[i].linesRanges = [];
-        }
-        for (let i = 0; i < indexes.length; i++) {
-            let index = indexes[i];
-            for (let j = 0; j < linesRanges.length; j++) {
-                let range = linesRanges[j];
+    public setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[]) {
+        this.iterateRanges = iterateRanges;
+        this.linesIndex = linesIndex;
+        for (let i = 0; i < linesIndex.length; i++) {
+            let index = linesIndex[i];
+            for (let j = 0; j < iterateRanges.length; j++) {
+                let range = iterateRanges[j];
+                let hasOverlap = false;
                 if (typeof range === 'number') {
                     if (range >= index.startLine && range <= index.endLine) {
-                        addToIndexRanges(range, index.linesRanges);
-                        linesRanges.splice(j, 1);
-                        j--;
+                        hasOverlap = true;
                     }
                 } else {
                     if (range.end >= index.startLine && range.start <= index.endLine) {
-                        // has overlap
-                        addToIndexRanges(range, index.linesRanges);
+                        hasOverlap = true;
                     }
                 }
-
+                if (hasOverlap) {
+                    let start = index.start;
+                    let end = start + DEFAULT_CHUNK_SIZE;
+                    let seekRange: ISeekRange = {
+                        start: start,
+                        startLine: index.startLine,
+                        end: 0,
+                        endLine: 0,
+                        iterateRanges: []
+                    };
+                    let lastDelta: number = 0;
+                    for (let k = i; k < linesIndex.length; k++) {
+                        let delta = end - linesIndex[k].end;
+                        if (k === i) {
+                            if (delta <= 0) {
+                                seekRange.end = linesIndex[k].end;
+                                seekRange.endLine = linesIndex[k].endLine;
+                                break;
+                            } else {
+                                lastDelta = delta;
+                            }
+                        } else if (k === linesIndex.length - 1) {
+                            seekRange.end = linesIndex[k].end;
+                            seekRange.endLine = linesIndex[k].endLine;
+                            i = k;
+                            break;
+                        } else {
+                            if (delta === 0) {
+                                seekRange.end = linesIndex[k].end;
+                                seekRange.endLine = linesIndex[k].endLine;
+                                i = k;
+                                break;
+                            } else if (lastDelta > 0 && delta < 0) {
+                                if (Math.abs(lastDelta) >= Math.abs(delta)) {
+                                    seekRange.end = linesIndex[k].end;
+                                    seekRange.endLine = linesIndex[k].endLine;
+                                    i = k;
+                                    break;
+                                } else {
+                                    seekRange.end = linesIndex[k - 1].end;
+                                    seekRange.endLine = linesIndex[k - 1].endLine;
+                                    i = k - 1;
+                                    break;
+                                }
+                            } else {
+                                lastDelta = delta;
+                            }
+                        }
+                    }
+                    setSeekIterateRanges(seekRange);
+                    this.seekRanges.push(seekRange);
+                    break;
+                }
             }
         }
-
-        function addToIndexRanges(range: number | LinesRange, indexRanges: LinesRanges): void | LinesRange {
+        console.log('seekrange:', this.seekRanges);
+        function setSeekIterateRanges(seekRange: ISeekRange) {
+            for (let i = 0; i < iterateRanges.length; i++) {
+                let iterateRange = iterateRanges[i];
+                let hasOverlap = false;
+                if (typeof iterateRange === 'number') {
+                    if (iterateRange >= seekRange.startLine && iterateRange <= seekRange.endLine) {
+                        hasOverlap = true;
+                    }
+                } else {
+                    if (iterateRange.end >= seekRange.startLine && iterateRange.start <= seekRange.endLine) {
+                        hasOverlap = true;
+                        if (iterateRange.start < seekRange.startLine) {
+                            let newRange: LinesRange | number = {
+                                start: iterateRange.start,
+                                end: seekRange.startLine - 1
+                            };
+                            if (newRange.start === newRange.end) {
+                                newRange = newRange.start;
+                            }
+                            iterateRanges.splice(i, 0, newRange);
+                            iterateRange.start = seekRange.startLine;
+                            i++;
+                        }
+                        if (iterateRange.end > seekRange.endLine) {
+                            let newRange: LinesRange | number = {
+                                start: seekRange.endLine + 1,
+                                end: iterateRange.end
+                            };
+                            if (newRange.start === newRange.end) {
+                                newRange = newRange.start;
+                            }
+                            iterateRanges.splice(i + 1, 0, newRange);
+                            iterateRange.end = seekRange.endLine;
+                        }
+                        if (iterateRange.start === iterateRange.end) {
+                            iterateRanges[i] = iterateRange.start;
+                            iterateRange = iterateRanges[i];
+                        }
+                    }
+                }
+                if (hasOverlap) {
+                    mergeRange(iterateRange, seekRange.iterateRanges);
+                }
+            }
+        }
+        function mergeRange(range: number | LinesRange, iterateRanges: LinesRanges): void {
             let isNumber = typeof range === 'number';
             let rangeStart = getStart(range);
             let rangeEnd = getEnd(range);
-            let lastIndexRange = indexRanges.length ? indexRanges[indexRanges.length - 1] : null;
-            if (lastIndexRange === null) {
+            let lastIterateRange = iterateRanges.length ? iterateRanges[iterateRanges.length - 1] : null;
+            if (lastIterateRange === null) {
                 // first indexRange
-                indexRanges.push(range);
+                iterateRanges.push(range);
                 return;
             } else {
-                let lastEnd = getEnd(lastIndexRange);
+                let lastEnd = getEnd(lastIterateRange);
                 if (rangeStart > lastEnd + 1) {
-                    // [...,6 | {5,6}] + [8 | {8,9}], just append range
-                    indexRanges.push(range);
+                    // new range is greater than last iterate range end and is not continuous
+                    // ex. [...,6] + [8 | {8,9}], just append range
+                    iterateRanges.push(range);
                     return;
                 } else if (rangeStart >= lastEnd) {
-                    // 1: [...,6] + 6
-                    // 2: [...,6] + {6,7} = [...,{6,7}]
-                    // 2: [...,6] + 7 = [...,{6,7}]
-                    // 2: [...,6] + {7,8} = [...,{6,8}]
-                    // 1: [...,{5,6}] + 6
-                    // 3: [...,{5,6}] + {6,7} = [...,{5,7}]
-                    // 3: [...,{5,6}] + 7 = [...,{5,7}]
-                    // 3: [...,{5,6}] + {7,8} = [...,{5,8}]
-
-                    if (isNumber) {
-                        // 1
-                        return;
-                    } else if (typeof lastIndexRange === 'number') {
-                        // 2
-                        indexRanges[indexRanges.length - 1] = {
-                            start: lastIndexRange,
-                            end: rangeEnd
-                        };
-                        return;
+                    // new range is greater than or equal to last iterate range end
+                    // 1: [...,6 | {5,6}] + 6 do nothing
+                    // 2: [...,6] + {6,7} | 7 | {7,8} change last iterate range to object, set end to rangeEnd
+                    // 3: [...,{5,6}] + {6,7} | 7 | {7,8} change last iterate range.end to rangeEnd
+                    if (typeof lastIterateRange === 'number') {
+                        if ((isNumber && rangeStart > lastEnd) || !isNumber) {
+                            iterateRanges[iterateRanges.length - 1] = {
+                                start: lastIterateRange,
+                                end: rangeEnd
+                            };
+                            return;
+                        }
                     } else {
-                        // 3
-                        lastIndexRange.end = rangeEnd;
-                        return;
+                        if ((isNumber && rangeStart > lastEnd) || !isNumber) {
+                            lastIterateRange.end = rangeEnd;
+                            return;
+                        }
+                    }
+                } else {
+                    // need to merge new range into a proper position
+                    for (let i = 0; i < iterateRanges.length - 1; i++) {
+                        let currentRange = iterateRanges[i];
+                        let currentStart = getStart(currentRange);
+                        let currentEnd = getEnd(currentRange);
+                        let nextRange = iterateRanges[i + 1];
+                        let nextStart = getStart(nextRange);
+                        let nextEnd = getEnd(nextRange);
+                        if (isNumber) {
+                            if ((range >= currentStart && range <= currentEnd) || (range >= nextStart && range <= nextEnd)) {
+                                // range within certain range
+                                // 6 -> [6,7] | [5,6] | [{4,7},{9,10}] | [{2,3},{5,7}]
+                                return;
+                            } else if (range > currentEnd && range < nextStart) {
+                                if (range === currentEnd + 1) {
+                                    if (typeof currentRange === 'number') {
+                                        iterateRanges[i] = {
+                                            start: currentRange,
+                                            end: range
+                                        };
+                                    } else {
+                                        currentRange.end = range;
+                                    }
+                                    if (range === nextStart - 1) {
+                                        (iterateRanges[i] as LinesRange).end = nextEnd;
+                                        iterateRanges.splice(i + 1, 1);
+                                    }
+                                    return;
+                                } else if (range === nextStart - 1) {
+                                    if (typeof nextRange === 'number') {
+                                        iterateRanges[i + 1] = {
+                                            start: range,
+                                            end: nextRange
+                                        };
+                                    } else {
+                                        nextRange.start = range;
+                                    }
+                                    return;
+                                } else {
+                                    iterateRanges.splice(i + 1, 0, range);
+                                    return;
+                                }
+                            } else if (i === 0 && range < currentStart) {
+                                if (range === currentStart - 1) {
+                                    if (typeof currentRange === 'number') {
+                                        iterateRanges[i] = {
+                                            start: range,
+                                            end: currentRange
+                                        };
+                                    } else {
+                                        currentRange.start = range;
+                                    }
+                                    return;
+                                }
+                            }
+                        } else {
+                        }
                     }
                 }
             }
-            for (let i = 0; i < indexRanges.length; i++) {
-                let currentRange = indexRanges[i];
-                let currentEnd = getEnd(currentRange);
-                let nextStart = i < indexRanges.length - 1 ? getStart(indexRanges[i + 1]) : null;
-                if (isNumber) {
-
-                }
-
-            }
+            return;
         }
+    }
+
+    public setSeekRanges(seekRange: ISeekRange) {
+
     }
 
     public hitLine(lineData: Uint8Array): void {
@@ -390,17 +540,17 @@ class Iterator {
                     progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
                 } else {
                     progress = Math.round(this.sporadicProcessed / this.linesToIterate * 10000) / 100;
-                    let first = this.linesRanges[0];
+                    let first = this.iterateRanges[0];
                     if (typeof first === 'number') {
                         if (first === this.currentLineNumber) {
-                            this.linesRanges.splice(0, 1);
+                            this.iterateRanges.splice(0, 1);
                             match = true;
                         }
                     } else {
                         if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.end) {
                             // within range
                             if (first.start === first.end) {
-                                this.linesRanges.splice(0, 1);
+                                this.iterateRanges.splice(0, 1);
                             } else {
                                 first.start++;
                             }
@@ -433,8 +583,7 @@ class Iterator {
                             start: this.processedViewLength,
                             startLine: this.currentLineNumber,
                             end: isLast ? this.processedViewLength + lineData.length : 0,
-                            endLine: isLast ? this.currentLineNumber : 0,
-                            linesRanges: []
+                            endLine: isLast ? this.currentLineNumber : 0
                         });
                     }
                 }
@@ -787,7 +936,7 @@ class TxtReaderWorker {
         this.iterator.linesToIterate = sporadicTotal;
         this.iterator.endOffset = this.file.size;
         this.iterator.isSporadicIterate = true;
-        this.iterator.linesRanges = linesRanges;
+        this.iterator.iterateRanges = linesRanges;
         this.seekSporadic();
     }
 
@@ -840,7 +989,7 @@ class TxtReaderWorker {
         if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
             complete.call(this);
         } else {
-            let first = this.iterator.linesRanges[0];
+            let first = this.iterator.iterateRanges[0];
             let start = typeof first === 'number' ? first : first.start;
             if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
                 this.iterator.offset += this.CHUNK_SIZE;
@@ -855,7 +1004,7 @@ class TxtReaderWorker {
                     this.fr.readAsArrayBuffer(slice);
                     return;
                 }
-            } else if (this.iterator.linesRanges.length > 0) {
+            } else if (this.iterator.iterateRanges.length > 0) {
                 // for (let i = 0; i < this.linesIndex.length; i++) {
                 //     let mapStart = this.linesIndex[i].line;
                 //     let mapEnd = i === this.linesIndex.length - 1 ? this.lineCount : this.linesIndex[i + 1].line - 1;
