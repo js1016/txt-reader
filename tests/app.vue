@@ -130,6 +130,41 @@ type Message = {
 
 type GetResults = { lineNumber: number; value: string }[];
 
+function getPlainRanges(
+    ranges: LinesRanges,
+    min?: number,
+    max?: number
+): number[] {
+    let result: number[] = [];
+    for (let i = 0; i < ranges.length; i++) {
+        let current = ranges[i];
+        if (typeof current === "number") {
+            if (result.indexOf(current) === -1) {
+                push(current);
+            }
+        } else {
+            for (let j = current.start; j <= current.end; j++) {
+                if (result.indexOf(j) === -1) {
+                    push(j);
+                }
+            }
+        }
+    }
+    function push(number: number) {
+        if (
+            typeof min === "number" &&
+            typeof max === "number" &&
+            number >= min &&
+            number <= max
+        ) {
+            result.push(number);
+        } else if (typeof min === "undefined" || typeof max === "undefined") {
+            result.push(number);
+        }
+    }
+    return result;
+}
+
 @Component
 export default class App extends Vue {
     chunkSizeValue: string = "104857600";
@@ -159,6 +194,14 @@ export default class App extends Vue {
             hasStartCount: false,
             iteratable: true,
             acceptsLinesRanges: false,
+            hasDecode: false,
+            hasLineNumber: false
+        },
+        testRanges: {
+            signature: "_testRanges(linesRanges)",
+            hasStartCount: false,
+            iteratable: false,
+            acceptsLinesRanges: true,
             hasDecode: false,
             hasLineNumber: false
         },
@@ -411,6 +454,9 @@ export default class App extends Vue {
             case "getLines2":
                 this.getLines2();
                 break;
+            case "testRanges":
+                this.testRanges();
+                break;
         }
     }
 
@@ -449,6 +495,103 @@ export default class App extends Vue {
                 this.running = false;
                 this.error(`getLine encountered error: ${reason}`);
             });
+    }
+
+    testRanges() {
+        if (this.linesRanges.length > 0) {
+            this.running = true;
+            txtReader
+                ._testRanges(this.linesRanges)
+                .then(response => {
+                    let pass: boolean = true;
+                    console.log("testranges done: ", response);
+                    this.log(`_testRanges finished in ${response.timeTaken}ms`);
+                    for (let i = 0; i < response.result.length; i++) {
+                        let seek = response.result[i];
+                        this.log(
+                            `Seek part ${i}: offset: ${seek.start} ~ ${seek.end}, line: ${seek.startLine} ~ ${seek.endLine}, iterateRanges: Array(${seek.iterateRanges.length})`
+                        );
+                    }
+                    let plainIterateRanges: number[] = []; // for testing purpose
+                    plainIterateRanges = getPlainRanges(
+                        this.linesRanges,
+                        1,
+                        this.lineCount
+                    );
+                    this.log(
+                        `Expected iterate lines: ${plainIterateRanges.length}`
+                    );
+                    let seekRanges = response.result;
+                    let seekPlain: number[] = [];
+                    for (let i = 0; i < seekRanges.length; i++) {
+                        let seekRange = seekRanges[i].iterateRanges;
+                        for (let j = 0; j < seekRange.length; j++) {
+                            let range = seekRange[j];
+                            if (typeof range === "number") {
+                                if (seekPlain.indexOf(range) > -1) {
+                                    this.error(
+                                        `Duplicate range (number): ${range}`
+                                    );
+                                    pass = false;
+                                } else if (
+                                    range >= 1 &&
+                                    range <= this.lineCount
+                                ) {
+                                    seekPlain.push(range);
+                                }
+                            } else {
+                                for (let k = range.start; k <= range.end; k++) {
+                                    if (seekPlain.indexOf(k) > -1) {
+                                        this.error(
+                                            `Duplicate range (object): {start: ${range.start}, end: ${range.end}} duplicate with number: ${k}`
+                                        );
+                                        pass = false;
+                                    } else if (k >= 1 && k <= this.lineCount) {
+                                        seekPlain.push(k);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    this.log(`Seek lines: ${seekPlain.length}`);
+                    if (seekPlain.length === plainIterateRanges.length) {
+                        this.log("Match!");
+                    } else {
+                        this.error(
+                            `iterate lines do not match seek lines, iterateRange total: ${plainIterateRanges.length}, seekPlain total: ${seekPlain.length}`
+                        );
+                        pass = false;
+                    }
+                    for (let i = 0; i < plainIterateRanges.length; i++) {
+                        let line = plainIterateRanges[i];
+                        let index = seekPlain.indexOf(line);
+                        if (index > -1) {
+                            seekPlain.splice(index, 1);
+                        } else {
+                            this.error(
+                                `iterate line: ${line} not found in seekPlain`
+                            );
+                            pass = false;
+                        }
+                    }
+                    if (seekPlain.length > 0) {
+                        this.error(
+                            `SeekPlain remaining length: ${seekPlain.length}`
+                        );
+                        pass = false;
+                    }
+                    if (pass) {
+                        this.log("_testRanges final result: Pass!");
+                    } else {
+                        this.error("_testRanges failed.");
+                    }
+                    this.running = false;
+                })
+                .catch(reason => {
+                    this.running = false;
+                    this.error(`_testRanges encountered error: ${reason}`);
+                });
+        }
     }
 
     getLines2() {
@@ -603,19 +746,7 @@ export default class App extends Vue {
                 let linesRanges = JSON.parse(fr.result as string);
                 Object.freeze(linesRanges);
                 this.linesRanges = linesRanges;
-                let verifyResult = true;
-                for (let i = 0; i < this.linesRanges.length - 1; i++) {
-                    let prev = this.linesRanges[i];
-                    let next = this.linesRanges[i + 1];
-                    let pend = typeof prev === "number" ? prev : prev.end;
-                    let nstart = typeof next === "number" ? next : next.start;
-                    if (nstart < pend) {
-                        verifyResult = false;
-                        console.log(`Verify failed at ${i}`);
-                        break;
-                    }
-                }
-                this.linesRangesString = `Using JSON file: ${this.mapFile.name}, item length: ${this.linesRanges.length}, verify result: ${verifyResult}`;
+                this.linesRangesString = `Using JSON file: ${this.mapFile.name}, item length: ${this.linesRanges.length}`;
             };
             fr.readAsText(this.mapFile);
         }

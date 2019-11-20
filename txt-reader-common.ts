@@ -28,3 +28,11 @@ export type LinesRange = {
 }
 
 export type LinesRanges = (LinesRange | number)[];
+
+export interface ISeekRange {
+    start: number;
+    end: number;
+    startLine: number;
+    endLine: number;
+    iterateRanges: LinesRanges;
+}

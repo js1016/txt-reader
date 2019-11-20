@@ -1,7 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult, LinesRange } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult, LinesRange, ISeekRange } from './txt-reader-common'
 import { TextDecoder_Instance } from 'text-encoding-shim'
 import cloneDeep from "lodash.clonedeep"
 
@@ -28,6 +28,10 @@ interface IGetLines2TaskResponse extends ITaskResponse {
         range: LinesRange | number;
         contents: (string | Uint8Array)[];
     }[]
+}
+
+interface ITestRangesTaskResponse extends ITaskResponse {
+    result: ISeekRange[]
 }
 
 interface IGetSporadicLinesTaskResponse extends ITaskResponse {
@@ -296,6 +300,15 @@ export class TxtReader {
     public enableVerbose() {
         this.verboseLogging = true;
         return this.newTask('enableVerbose');
+    }
+
+    public _testRanges(linesRanges: LinesRanges): TxtReaderTask<ITestRangesTaskResponse> {
+        if (!this.file) {
+            return this.newTask<ITestRangesTaskResponse>('_testRanges', new Error('TxtReader has not loaded a file yet.'));
+        }
+        return this.newTask<ITestRangesTaskResponse>('_testRanges', linesRanges).then(response => {
+
+        });
     }
 
     public getLines2(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetLines2TaskResponse> {

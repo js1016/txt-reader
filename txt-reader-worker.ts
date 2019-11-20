@@ -1,20 +1,12 @@
 import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult, ISeekRange } from './txt-reader-common'
 
 interface ILineIndexRange {
     start: number;
     end: number;
     startLine: number;
     endLine: number;
-}
-
-interface ISeekRange {
-    start: number;
-    end: number;
-    startLine: number;
-    endLine: number;
-    iterateRanges: LinesRanges;
 }
 
 interface IIterateLinesConfig {
@@ -121,9 +113,6 @@ self.addEventListener('message', (event: MessageEvent) => {
                 respondMessage(new ResponseMessage(false, 'Invalid CHUNK_SIZE, must be greater than 1.'));
                 return;
             }
-            if (txtReaderWorker) {
-                txtReaderWorker.CHUNK_SIZE = req.data;
-            }
             DEFAULT_CHUNK_SIZE = req.data;
             respondMessage(new ResponseMessage(DEFAULT_CHUNK_SIZE));
             break;
@@ -157,6 +146,11 @@ self.addEventListener('message', (event: MessageEvent) => {
                 lineNumber: req.data.lineNumber,
                 decode: req.data.decode
             });
+            break;
+        case '_testRanges':
+            if (validateWorker()) {
+                (<TxtReaderWorker>txtReaderWorker)._testRanges(req.data);
+            }
             break;
     }
 });
@@ -301,8 +295,24 @@ class Iterator {
         return this.linesToIterate > 0;
     }
 
-    public setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[]) {
-        this.iterateRanges = iterateRanges;
+    public setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[], doTest: boolean = false) {
+        let plainIterateRanges: number[] = []; // for testing purpose
+        if (doTest) {
+            plainIterateRanges = _getPlainRanges(iterateRanges);
+        }
+        let firstStart = getStart(iterateRanges[0]);
+        let lastEnd = getEnd(iterateRanges[iterateRanges.length - 1]);
+        if (firstStart > lastEnd) {
+            iterateRanges.sort(function (prev, next) {
+                let prevStart = getStart(prev);
+                let nextEnd = getEnd(next);
+                if (prevStart > nextEnd) {
+                    return 1;
+                } else {
+                    return -1;
+                }
+            });
+        }
         this.linesIndex = linesIndex;
         for (let i = 0; i < linesIndex.length; i++) {
             let index = linesIndex[i];
@@ -373,7 +383,48 @@ class Iterator {
                 }
             }
         }
-        console.log('seekrange:', this.seekRanges);
+        if (doTest) {
+            let seekPlain: number[] = [];
+            for (let i = 0; i < this.seekRanges.length; i++) {
+                let seekRange = this.seekRanges[i].iterateRanges;
+                for (let j = 0; j < seekRange.length; j++) {
+                    let range = seekRange[j];
+                    if (typeof range === 'number') {
+                        if (seekPlain.indexOf(range) > -1) {
+                            console.error(`Test failed, duplicate range (number): `, range);
+                        }
+                        seekPlain.push(range);
+                    } else {
+                        for (let k = range.start; k <= range.end; k++) {
+                            if (seekPlain.indexOf(k) > -1) {
+                                console.error(`Test failed, duplicate range (object): {start: ${range.start}, end: ${range.end}} duplicate with number: ${k}`);
+                            }
+                            seekPlain.push(k);
+                        }
+                    }
+                }
+            }
+            if (seekPlain.length === plainIterateRanges.length) {
+                console.log(`iterateRange total lines match, value= ${seekPlain.length}`);
+            } else {
+                console.error(`iterateRange total length not match, iterateRange total: ${plainIterateRanges.length}, seekPlain total: ${seekPlain.length}`);
+            }
+            for (let i = 0; i < plainIterateRanges.length; i++) {
+                let line = plainIterateRanges[i];
+                let index = seekPlain.indexOf(line);
+                if (index > -1) {
+                    seekPlain.splice(index, 1);
+                } else {
+                    console.error(`iterate line: ${line} not found in seekPlain`);
+                }
+            }
+            if (seekPlain.length === 0) {
+                console.log('All match, seekPlain length is 0');
+            } else {
+                console.log(`SeekPlain remaining length: ${seekPlain.length}`, seekPlain);
+            }
+            console.log('seek range check done!')
+        }
         function setSeekIterateRanges(seekRange: ISeekRange) {
             for (let i = 0; i < iterateRanges.length; i++) {
                 let iterateRange = iterateRanges[i];
@@ -446,58 +497,25 @@ class Iterator {
                                 start: lastIterateRange,
                                 end: rangeEnd
                             };
-                            return;
                         }
+                        return;
                     } else {
-                        if ((isNumber && rangeStart > lastEnd) || !isNumber) {
+                        if ((isNumber && rangeStart >= lastEnd) || !isNumber) {
                             lastIterateRange.end = rangeEnd;
                             return;
+                        } else {
+                            throw Error("Unhandled scenario 1");
                         }
                     }
                 } else {
+                    let i: number = 0;
                     // need to merge new range into a proper position
-                    for (let i = 0; i < iterateRanges.length - 1; i++) {
+                    for (i = 0; i < iterateRanges.length; i++) {
                         let currentRange = iterateRanges[i];
                         let currentStart = getStart(currentRange);
                         let currentEnd = getEnd(currentRange);
-                        let nextRange = iterateRanges[i + 1];
-                        let nextStart = getStart(nextRange);
-                        let nextEnd = getEnd(nextRange);
                         if (isNumber) {
-                            if ((range >= currentStart && range <= currentEnd) || (range >= nextStart && range <= nextEnd)) {
-                                // range within certain range
-                                // 6 -> [6,7] | [5,6] | [{4,7},{9,10}] | [{2,3},{5,7}]
-                                return;
-                            } else if (range > currentEnd && range < nextStart) {
-                                if (range === currentEnd + 1) {
-                                    if (typeof currentRange === 'number') {
-                                        iterateRanges[i] = {
-                                            start: currentRange,
-                                            end: range
-                                        };
-                                    } else {
-                                        currentRange.end = range;
-                                    }
-                                    if (range === nextStart - 1) {
-                                        (iterateRanges[i] as LinesRange).end = nextEnd;
-                                        iterateRanges.splice(i + 1, 1);
-                                    }
-                                    return;
-                                } else if (range === nextStart - 1) {
-                                    if (typeof nextRange === 'number') {
-                                        iterateRanges[i + 1] = {
-                                            start: range,
-                                            end: nextRange
-                                        };
-                                    } else {
-                                        nextRange.start = range;
-                                    }
-                                    return;
-                                } else {
-                                    iterateRanges.splice(i + 1, 0, range);
-                                    return;
-                                }
-                            } else if (i === 0 && range < currentStart) {
+                            if (range < currentStart) {
                                 if (range === currentStart - 1) {
                                     if (typeof currentRange === 'number') {
                                         iterateRanges[i] = {
@@ -507,20 +525,141 @@ class Iterator {
                                     } else {
                                         currentRange.start = range;
                                     }
-                                    return;
+                                } else {
+                                    iterateRanges.splice(i, 0, range);
                                 }
+                                return;
+                            } else if (range >= currentStart && range <= currentEnd) {
+                                // range within certain range
+                                // 6 -> [6,7] | [5,6] | [{4,7},{9,10}] | [{2,3},{5,7}]
+                                return;
+                            } else if (range > currentEnd) {
+                                if (range === currentEnd + 1) {
+                                    if (typeof currentRange === 'number') {
+                                        iterateRanges[i] = {
+                                            start: currentRange,
+                                            end: range
+                                        };
+                                    } else {
+                                        currentRange.end = range;
+                                    }
+                                    break;
+                                } else {
+                                    if (i === iterateRanges.length - 1) {
+                                        iterateRanges.push(range);
+                                        return;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                            } else {
+                                throw Error("Unhandled scenario 2");
                             }
                         } else {
+                            if (rangeEnd < currentStart - 1) {
+                                iterateRanges.splice(i, 0, range);
+                                return;
+                            } else if (rangeEnd === currentStart - 1) {
+                                if (typeof currentRange === 'number') {
+                                    iterateRanges[i] = {
+                                        start: rangeStart,
+                                        end: currentRange
+                                    };
+                                } else {
+                                    currentRange.start = rangeStart;
+                                }
+                                return;
+                            } else if (rangeStart <= currentStart && rangeEnd <= currentEnd) {
+                                if (typeof currentRange === 'number') {
+                                    // only occurs when [1,4] merge with 4 since [1,3]->4 and [1,2]-> are handled in previous if statements
+                                    iterateRanges[i] = {
+                                        start: rangeStart,
+                                        end: rangeEnd
+                                    }
+                                } else {
+                                    currentRange.start = rangeStart;
+                                }
+                                return;
+                            } else if (rangeStart <= currentStart && rangeEnd > currentEnd) {
+                                if (typeof currentRange === 'number') {
+                                    iterateRanges[i] = {
+                                        start: rangeStart,
+                                        end: rangeEnd
+                                    };
+                                } else {
+                                    currentRange.start = rangeStart;
+                                    currentRange.end = rangeEnd;
+                                }
+                                break;
+                            } else if (rangeStart > currentStart && rangeEnd <= currentEnd) {
+                                return;
+                            } else if (rangeStart > currentStart && rangeStart <= currentEnd && rangeEnd > currentEnd) {
+                                // currentRange must not be a number
+                                (currentRange as LinesRange).end = rangeEnd;
+                                break;
+                            } else if (rangeStart === currentEnd + 1) {
+                                if (typeof currentRange === 'number') {
+                                    iterateRanges[i] = {
+                                        start: currentRange,
+                                        end: rangeEnd
+                                    };
+                                } else {
+                                    currentRange.end = rangeEnd;
+                                }
+                                break;
+                            } else if (rangeStart > currentEnd + 1) {
+                                if (i === iterateRanges.length - 1) {
+                                    iterateRanges.push(range);
+                                    return;
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                throw Error("Unhandled scenario 3");
+                            }
+                        }
+                    }
+                    if (i < iterateRanges.length - 1) {
+                        let modifiedRange = iterateRanges[i] as LinesRange;
+                        for (i = i + 1; i < iterateRanges.length; i++) {
+                            let currentRange = iterateRanges[i];
+                            let currentStart = getStart(currentRange);
+                            let currentEnd = getEnd(currentRange);
+                            if (modifiedRange.end < currentStart - 1) {
+                                return;
+                            } else if (modifiedRange.end >= currentStart - 1 && modifiedRange.end <= currentEnd) {
+                                modifiedRange.end = currentEnd;
+                                iterateRanges.splice(i, 1);
+                                return;
+                            } else {
+                                iterateRanges.splice(i, 1);
+                                i--
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+            throw Error("Unhandled scenario 4");
+        }
+        function _getPlainRanges(ranges: LinesRanges): number[] {
+            let result: number[] = [];
+            for (let i = 0; i < ranges.length; i++) {
+                let current = ranges[i];
+                if (typeof current === 'number') {
+                    if (result.indexOf(current) === -1) {
+                        result.push(current);
+                    }
+                } else {
+                    for (let j = current.start; j <= current.end; j++) {
+                        if (result.indexOf(j) === -1) {
+                            result.push(j);
                         }
                     }
                 }
             }
-            return;
+            return result;
         }
-    }
-
-    public setSeekRanges(seekRange: ISeekRange) {
-
     }
 
     public hitLine(lineData: Uint8Array): void {
@@ -642,7 +781,6 @@ enum LineBreakType {
 }
 
 class TxtReaderWorker {
-    public CHUNK_SIZE!: number;
     private file!: File;
     private fr!: FileReader;
     private linesIndex!: ILineIndexRange[];
@@ -656,7 +794,6 @@ class TxtReaderWorker {
             respondMessage(new ResponseMessage(false, 'Invalid file object'));
             return;
         }
-        this.CHUNK_SIZE = DEFAULT_CHUNK_SIZE;
         this.file = file;
         this.lineCount = 0;
         this.linesIndex = [];
@@ -790,13 +927,11 @@ class TxtReaderWorker {
             if (this.iterator.isSporadicIterate) {
                 this.seekSporadic();
             } else {
-                iterator.offset += this.CHUNK_SIZE;
+                iterator.offset += DEFAULT_CHUNK_SIZE;
                 this.seek();
             }
         };
         this.iterator = new Iterator();
-        this.iterator.buildIndex = true;
-        this.iterator.indexSize = Math.round(file.size / 1000);
         if (sniffConfig) {
             if (sniffConfig.lineNumber < 1) {
                 respondMessage(new ResponseMessage(false, 'Sniff line number is invalid.'));
@@ -805,6 +940,9 @@ class TxtReaderWorker {
             this.sniffLines = [];
             this.iterator.linesToIterate = sniffConfig.lineNumber;
             this.iterator.buildIndex = false;
+        } else {
+            this.iterator.buildIndex = true;
+            this.iterator.indexSize = Math.round(file.size / 1000);
         }
         this.iterator.endOffset = this.file.size;
         if (onNewLineConfig) {
@@ -980,7 +1118,7 @@ class TxtReaderWorker {
             }
             this.iterator = new Iterator();
         } else {
-            let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + this.CHUNK_SIZE);
+            let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
             this.fr.readAsArrayBuffer(slice);
         }
     }
@@ -992,7 +1130,7 @@ class TxtReaderWorker {
             let first = this.iterator.iterateRanges[0];
             let start = typeof first === 'number' ? first : first.start;
             if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
-                this.iterator.offset += this.CHUNK_SIZE;
+                this.iterator.offset += DEFAULT_CHUNK_SIZE;
                 if (this.iterator.offset >= this.iterator.endOffset) {
                     this.iterator.hitLine(this.iterator.lineView);
                     this.iterator.lineView = new Uint8Array(0);
@@ -1000,7 +1138,7 @@ class TxtReaderWorker {
                         complete.call(this);
                     }
                 } else {
-                    let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + this.CHUNK_SIZE);
+                    let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
                     this.fr.readAsArrayBuffer(slice);
                     return;
                 }
@@ -1061,8 +1199,17 @@ class TxtReaderWorker {
     public getLines2(linesRanges: LinesRanges): void {
         this.iterator = new Iterator();
         this.iterator.setRanges(linesRanges, this.linesIndex);
-        console.log(this.linesIndex);
-        debugger;
+    }
+
+    public _testRanges(linesRanges: LinesRanges): void {
+        let iterator = new Iterator();
+        try {
+            iterator.setRanges(linesRanges, this.linesIndex);
+            respondMessage(new ResponseMessage(iterator.seekRanges));
+        }
+        catch (error) {
+            respondMessage(new ResponseMessage(false, error));
+        }
     }
 
     private sortAndMergeLineMap(lineMap: LinesRanges): LinesRanges {
