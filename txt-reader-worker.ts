@@ -295,11 +295,7 @@ class Iterator {
         return this.linesToIterate > 0;
     }
 
-    public setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[], doTest: boolean = false) {
-        let plainIterateRanges: number[] = []; // for testing purpose
-        if (doTest) {
-            plainIterateRanges = _getPlainRanges(iterateRanges);
-        }
+    public setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[]) {
         let firstStart = getStart(iterateRanges[0]);
         let lastEnd = getEnd(iterateRanges[iterateRanges.length - 1]);
         if (firstStart > lastEnd) {
@@ -382,48 +378,6 @@ class Iterator {
                     break;
                 }
             }
-        }
-        if (doTest) {
-            let seekPlain: number[] = [];
-            for (let i = 0; i < this.seekRanges.length; i++) {
-                let seekRange = this.seekRanges[i].iterateRanges;
-                for (let j = 0; j < seekRange.length; j++) {
-                    let range = seekRange[j];
-                    if (typeof range === 'number') {
-                        if (seekPlain.indexOf(range) > -1) {
-                            console.error(`Test failed, duplicate range (number): `, range);
-                        }
-                        seekPlain.push(range);
-                    } else {
-                        for (let k = range.start; k <= range.end; k++) {
-                            if (seekPlain.indexOf(k) > -1) {
-                                console.error(`Test failed, duplicate range (object): {start: ${range.start}, end: ${range.end}} duplicate with number: ${k}`);
-                            }
-                            seekPlain.push(k);
-                        }
-                    }
-                }
-            }
-            if (seekPlain.length === plainIterateRanges.length) {
-                console.log(`iterateRange total lines match, value= ${seekPlain.length}`);
-            } else {
-                console.error(`iterateRange total length not match, iterateRange total: ${plainIterateRanges.length}, seekPlain total: ${seekPlain.length}`);
-            }
-            for (let i = 0; i < plainIterateRanges.length; i++) {
-                let line = plainIterateRanges[i];
-                let index = seekPlain.indexOf(line);
-                if (index > -1) {
-                    seekPlain.splice(index, 1);
-                } else {
-                    console.error(`iterate line: ${line} not found in seekPlain`);
-                }
-            }
-            if (seekPlain.length === 0) {
-                console.log('All match, seekPlain length is 0');
-            } else {
-                console.log(`SeekPlain remaining length: ${seekPlain.length}`, seekPlain);
-            }
-            console.log('seek range check done!')
         }
         function setSeekIterateRanges(seekRange: ISeekRange) {
             for (let i = 0; i < iterateRanges.length; i++) {
@@ -619,7 +573,7 @@ class Iterator {
                             }
                         }
                     }
-                    if (i < iterateRanges.length - 1) {
+                    if (i < iterateRanges.length) {
                         let modifiedRange = iterateRanges[i] as LinesRange;
                         for (i = i + 1; i < iterateRanges.length; i++) {
                             let currentRange = iterateRanges[i];
