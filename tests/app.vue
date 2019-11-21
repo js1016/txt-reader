@@ -48,6 +48,7 @@
                     <span>Auto generate linesRanges by lineNumber:</span>
                     <input type="number" v-model="autoGenerateLineNumberStr" />
                     <span>lines</span>
+                    <button @click="shuffle">Shuffle</button>
                 </div>
                 <div>
                     <span>linesRanges:</span>
@@ -97,6 +98,7 @@
 <script lang="ts">
 import * as json5 from "json5";
 import Vue from "vue";
+import cloneDeep from "lodash.clonedeep";
 import { Component, Prop, Watch } from "vue-property-decorator";
 import { TxtReader, IIteratorConfig } from "../txt-reader";
 import { LinesRange } from "../txt-reader-common";
@@ -163,6 +165,14 @@ function getPlainRanges(
         }
     }
     return result;
+}
+
+function shuffle<T>(a: T[]): T[] {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
 }
 
 @Component
@@ -746,10 +756,24 @@ export default class App extends Vue {
                 let linesRanges = JSON.parse(fr.result as string);
                 Object.freeze(linesRanges);
                 this.linesRanges = linesRanges;
-                this.linesRangesString = `Using JSON file: ${this.mapFile.name}, item length: ${this.linesRanges.length}`;
+                if (this.linesRanges.length < 100000) {
+                    this.linesRangesString = JSON.stringify(this.linesRanges);
+                } else {
+                    this.linesRangesString = `Using JSON file: ${this.mapFile.name}, item length: ${this.linesRanges.length}`;
+                }
             };
             fr.readAsText(this.mapFile);
         }
+    }
+
+    shuffle() {
+        let linesRanges = shuffle(cloneDeep(this.linesRanges));
+        Object.freeze(linesRanges);
+        this.linesRanges = linesRanges;
+        if (this.linesRanges.length < 100000) {
+            this.linesRangesString = JSON.stringify(this.linesRanges);
+        }
+        console.log(this.linesRanges);
     }
 
     linesRangesChange(event: Event) {
