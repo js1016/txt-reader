@@ -109,9 +109,9 @@ type Methods = {
     loadFile: MethodConfig;
     getLines: MethodConfig;
     getLines2: MethodConfig;
-    getSporadicLines: MethodConfig;
+    //getSporadicLines: MethodConfig;
     iterateLines: MethodConfig;
-    iterateSporadicLines: MethodConfig;
+    //iterateSporadicLines: MethodConfig;
     sniffLines: MethodConfig;
     [index: string]: MethodConfig;
 };
@@ -231,14 +231,14 @@ export default class App extends Vue {
             hasDecode: true,
             hasLineNumber: false
         },
-        getSporadicLines: {
-            signature: "getSporadicLines(sporadicLinesMap[, decode])",
-            hasStartCount: false,
-            iteratable: false,
-            acceptsLinesRanges: true,
-            hasDecode: true,
-            hasLineNumber: false
-        },
+        // getSporadicLines: {
+        //     signature: "getSporadicLines(sporadicLinesMap[, decode])",
+        //     hasStartCount: false,
+        //     iteratable: false,
+        //     acceptsLinesRanges: true,
+        //     hasDecode: true,
+        //     hasLineNumber: false
+        // },
         iterateLines: {
             signature: "iterateLines(iteratorConfig[, start, count])",
             hasStartCount: true,
@@ -247,14 +247,14 @@ export default class App extends Vue {
             hasDecode: false,
             hasLineNumber: false
         },
-        iterateSporadicLines: {
-            signature: "iterateSporadicLines(iteratorConfig, sporadicLinesMap)",
-            hasStartCount: false,
-            iteratable: true,
-            acceptsLinesRanges: true,
-            hasDecode: false,
-            hasLineNumber: false
-        },
+        // iterateSporadicLines: {
+        //     signature: "iterateSporadicLines(iteratorConfig, sporadicLinesMap)",
+        //     hasStartCount: false,
+        //     iteratable: true,
+        //     acceptsLinesRanges: true,
+        //     hasDecode: false,
+        //     hasLineNumber: false
+        // },
         sniffLines: {
             signature: "sniffLines(file, lineNumber[, decode])",
             hasStartCount: false,
@@ -449,15 +449,15 @@ export default class App extends Vue {
             case "getLines":
                 this.getLines();
                 break;
-            case "getSporadicLines":
-                this.getSporadicLines();
-                break;
+            // case "getSporadicLines":
+            //     this.getSporadicLines();
+            //     break;
             case "iterateLines":
                 this.iterateLines();
                 break;
-            case "iterateSporadicLines":
-                this.iterateSporadicLines();
-                break;
+            // case "iterateSporadicLines":
+            //     this.iterateSporadicLines();
+            //     break;
             case "sniffLines":
                 this.sniffLines();
                 break;
@@ -624,39 +624,39 @@ export default class App extends Vue {
         }
     }
 
-    getSporadicLines() {
-        if (this.linesRanges.length > 0) {
-            let decode = this.decode;
-            this.running = true;
-            txtReader
-                .getSporadicLines(this.linesRanges, decode)
-                .progress(progress => {
-                    this.progress = progress;
-                })
-                .then(response => {
-                    this.running = false;
-                    this.log(
-                        `getSporadicLines completed in ${response.timeTaken}ms`
-                    );
-                    console.log(response);
-                    if (!this.decode) {
-                        this.getResults = [];
-                        for (let i = 0; i < response.result.length; i++) {
-                            this.getResults.push({
-                                lineNumber: response.result[i].lineNumber,
-                                value: response.result[i].value.toString()
-                            });
-                        }
-                    } else {
-                        this.getResults = response.result as GetResults;
-                    }
-                })
-                .catch(reason => {
-                    this.running = false;
-                    this.error(`getSporadicLines encountered error: ${reason}`);
-                });
-        }
-    }
+    // getSporadicLines() {
+    //     if (this.linesRanges.length > 0) {
+    //         let decode = this.decode;
+    //         this.running = true;
+    //         txtReader
+    //             .getSporadicLines(this.linesRanges, decode)
+    //             .progress(progress => {
+    //                 this.progress = progress;
+    //             })
+    //             .then(response => {
+    //                 this.running = false;
+    //                 this.log(
+    //                     `getSporadicLines completed in ${response.timeTaken}ms`
+    //                 );
+    //                 console.log(response);
+    //                 if (!this.decode) {
+    //                     this.getResults = [];
+    //                     for (let i = 0; i < response.result.length; i++) {
+    //                         this.getResults.push({
+    //                             lineNumber: response.result[i].lineNumber,
+    //                             value: response.result[i].value.toString()
+    //                         });
+    //                     }
+    //                 } else {
+    //                     this.getResults = response.result as GetResults;
+    //                 }
+    //             })
+    //             .catch(reason => {
+    //                 this.running = false;
+    //                 this.error(`getSporadicLines encountered error: ${reason}`);
+    //             });
+    //     }
+    // }
 
     iterateLines() {
         let hasRange = this.startValue !== "" && this.countValue !== "";
@@ -682,36 +682,36 @@ export default class App extends Vue {
             });
     }
 
-    iterateSporadicLines() {
-        if (this.linesRanges.length > 0) {
-            this.running = true;
-            txtReader
-                .iterateSporadicLines(
-                    this.getIteratorConfig(),
-                    this.linesRanges
-                )
-                .progress(progress => {
-                    this.progress = progress;
-                })
-                .then(response => {
-                    this.running = false;
-                    this.log(
-                        `iterateSporadicLines completed in ${response.timeTaken}ms`
-                    );
-                    console.log(response);
-                    this.processIteratorResult(
-                        this.iterateOption,
-                        response.result
-                    );
-                })
-                .catch(reason => {
-                    this.running = false;
-                    this.error(
-                        `iterateSporadicLines encountered error: ${reason}`
-                    );
-                });
-        }
-    }
+    // iterateSporadicLines() {
+    //     if (this.linesRanges.length > 0) {
+    //         this.running = true;
+    //         txtReader
+    //             .iterateSporadicLines(
+    //                 this.getIteratorConfig(),
+    //                 this.linesRanges
+    //             )
+    //             .progress(progress => {
+    //                 this.progress = progress;
+    //             })
+    //             .then(response => {
+    //                 this.running = false;
+    //                 this.log(
+    //                     `iterateSporadicLines completed in ${response.timeTaken}ms`
+    //                 );
+    //                 console.log(response);
+    //                 this.processIteratorResult(
+    //                     this.iterateOption,
+    //                     response.result
+    //                 );
+    //             })
+    //             .catch(reason => {
+    //                 this.running = false;
+    //                 this.error(
+    //                     `iterateSporadicLines encountered error: ${reason}`
+    //                 );
+    //             });
+    //     }
+    // }
 
     sniffLines() {
         if (this.file) {

@@ -126,21 +126,21 @@ self.addEventListener('message', (event: MessageEvent) => {
                 (<TxtReaderWorker>txtReaderWorker).getLines2(req.data);
                 break;
             }
-        case 'getSporadicLines':
-            if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.linesRanges, req.data.decode);
-            }
-            break;
+        // case 'getSporadicLines':
+        //     if (validateWorker()) {
+        //         (<TxtReaderWorker>txtReaderWorker).getSporadicLines(req.data.linesRanges, req.data.decode);
+        //     }
+        //     break;
         case 'iterateLines':
             if (validateWorker()) {
                 (<TxtReaderWorker>txtReaderWorker).iterateLines(req.data)
             }
             break;
-        case 'iterateSporadicLines':
-            if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).iterateSporadicLines(req.data.config, req.data.lines);
-            }
-            break;
+        // case 'iterateSporadicLines':
+        //     if (validateWorker()) {
+        //         (<TxtReaderWorker>txtReaderWorker).iterateSporadicLines(req.data.config, req.data.lines);
+        //     }
+        //     break;
         case 'sniffLines':
             sniffWorker = new TxtReaderWorker(req.data.file, undefined, {
                 lineNumber: req.data.lineNumber,
@@ -237,13 +237,13 @@ class Iterator {
     public startLineNumber: number;
 
     // processed sporadic lines
-    public sporadicProcessed: number;
+    //public sporadicProcessed: number;
 
     public iterateRanges: LinesRanges;
 
     public seekRanges: ISeekRange[];
 
-    public isSporadicIterate: boolean;
+    //public isSporadicIterate: boolean;
 
     private processedViewLength: number;
 
@@ -276,14 +276,14 @@ class Iterator {
             end: 0,
             endLine: 0
         }];
-        this.sporadicProcessed = 0;
+        //this.sporadicProcessed = 0;
         this.iterateRanges = [];
         this.seekRanges = [];
-        this.isSporadicIterate = false;
+        //this.isSporadicIterate = false;
     }
 
     public shouldBreak(): boolean {
-        if (this.isPartialIterate() && (this.linesProcessed === this.linesToIterate || this.sporadicProcessed === this.linesToIterate)) {
+        if (this.isPartialIterate() && this.linesProcessed === this.linesToIterate) {
             return true;
         } else {
             return false;
@@ -620,40 +620,15 @@ class Iterator {
         let isPartialIterate: boolean = this.isPartialIterate();
         let progress = 0;
         if (!isPartialIterate ||
-            (isPartialIterate && this.currentLineNumber >= this.startLineNumber && !this.isSporadicIterate) ||
-            this.isSporadicIterate) {
+            (isPartialIterate && this.currentLineNumber >= this.startLineNumber)) {
             // complete iterate
             // continuous partial iterate and within range
             // sporadic iterate
             let match = false;
             if (isPartialIterate) {
-                if (!this.isSporadicIterate) {
-                    this.linesProcessed++;
-                    match = true;
-                    progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
-                } else {
-                    progress = Math.round(this.sporadicProcessed / this.linesToIterate * 10000) / 100;
-                    let first = this.iterateRanges[0];
-                    if (typeof first === 'number') {
-                        if (first === this.currentLineNumber) {
-                            this.iterateRanges.splice(0, 1);
-                            match = true;
-                        }
-                    } else {
-                        if (this.currentLineNumber >= first.start && this.currentLineNumber <= first.end) {
-                            // within range
-                            if (first.start === first.end) {
-                                this.iterateRanges.splice(0, 1);
-                            } else {
-                                first.start++;
-                            }
-                            match = true;
-                        }
-                    }
-                    if (match) {
-                        this.sporadicProcessed++;
-                    }
-                }
+                this.linesProcessed++;
+                match = true;
+                progress = Math.round(this.linesProcessed / this.linesToIterate * 10000) / 100;
             } else {
                 match = true;
                 this.linesProcessed++;
@@ -878,12 +853,8 @@ class TxtReaderWorker {
             // }
 
             iterator.lineBreakLength = 0;
-            if (this.iterator.isSporadicIterate) {
-                this.seekSporadic();
-            } else {
-                iterator.offset += DEFAULT_CHUNK_SIZE;
-                this.seek();
-            }
+            iterator.offset += DEFAULT_CHUNK_SIZE;
+            this.seek();
         };
         this.iterator = new Iterator();
         if (sniffConfig) {
@@ -1015,49 +986,49 @@ class TxtReaderWorker {
         });
     }
 
-    public setSporadicIterator(linesRanges: LinesRanges) {
-        linesRanges = this.sortAndMergeLineMap(linesRanges);
-        let sporadicTotal = 0;
-        for (let i = 0; i < linesRanges.length; i++) {
-            if (typeof linesRanges[i] === 'number') {
-                sporadicTotal++;
-            } else {
-                sporadicTotal += getLinesRangeCount(<LinesRange>linesRanges[i]);
-            }
-        }
-        this.iterator.linesToIterate = sporadicTotal;
-        this.iterator.endOffset = this.file.size;
-        this.iterator.isSporadicIterate = true;
-        this.iterator.iterateRanges = linesRanges;
-        this.seekSporadic();
-    }
+    // public setSporadicIterator(linesRanges: LinesRanges) {
+    //     linesRanges = this.sortAndMergeLineMap(linesRanges);
+    //     let sporadicTotal = 0;
+    //     for (let i = 0; i < linesRanges.length; i++) {
+    //         if (typeof linesRanges[i] === 'number') {
+    //             sporadicTotal++;
+    //         } else {
+    //             sporadicTotal += getLinesRangeCount(<LinesRange>linesRanges[i]);
+    //         }
+    //     }
+    //     this.iterator.linesToIterate = sporadicTotal;
+    //     this.iterator.endOffset = this.file.size;
+    //     this.iterator.isSporadicIterate = true;
+    //     this.iterator.iterateRanges = linesRanges;
+    //     this.seekSporadic();
+    // }
 
-    public getSporadicLines(linesRanges: LinesRanges, decode: boolean) {
-        linesRanges = this.sortAndMergeLineMap(linesRanges);
-        let result: IGetSporadicLinesResult[] = [];
-        this.iterator.onEachLineInternal = function (line: Uint8Array) {
-            result.push({
-                lineNumber: this.currentLineNumber,
-                value: decode ? utf8decoder.decode(line) : line
-            });
-        };
-        this.iterator.onSeekComplete = function () {
-            respondMessage(new ResponseMessage(result));
-        }
-        this.setSporadicIterator(linesRanges);
-    }
+    // public getSporadicLines(linesRanges: LinesRanges, decode: boolean) {
+    //     linesRanges = this.sortAndMergeLineMap(linesRanges);
+    //     let result: IGetSporadicLinesResult[] = [];
+    //     this.iterator.onEachLineInternal = function (line: Uint8Array) {
+    //         result.push({
+    //             lineNumber: this.currentLineNumber,
+    //             value: decode ? utf8decoder.decode(line) : line
+    //         });
+    //     };
+    //     this.iterator.onSeekComplete = function () {
+    //         respondMessage(new ResponseMessage(result));
+    //     }
+    //     this.setSporadicIterator(linesRanges);
+    // }
 
-    public iterateSporadicLines(config: IIteratorConfigMessage, linesRanges: LinesRanges) {
-        linesRanges = this.sortAndMergeLineMap(linesRanges);
-        config = this.stringToFunction(config);
-        let _this = this;
-        this.iterator.bindEachLineFromConfig(config);
-        this.iterator.onSeekComplete = function () {
-            this.eachLineScope = _this.removeFunctionsFromObject(this.eachLineScope);
-            respondMessage(new ResponseMessage(this.eachLineScope));
-        }
-        this.setSporadicIterator(linesRanges);
-    }
+    // public iterateSporadicLines(config: IIteratorConfigMessage, linesRanges: LinesRanges) {
+    //     linesRanges = this.sortAndMergeLineMap(linesRanges);
+    //     config = this.stringToFunction(config);
+    //     let _this = this;
+    //     this.iterator.bindEachLineFromConfig(config);
+    //     this.iterator.onSeekComplete = function () {
+    //         this.eachLineScope = _this.removeFunctionsFromObject(this.eachLineScope);
+    //         respondMessage(new ResponseMessage(this.eachLineScope));
+    //     }
+    //     this.setSporadicIterator(linesRanges);
+    // }
 
     private seek() {
         let finishDueToLinesToIterateReached: boolean = this.iterator.linesToIterate > 0 && this.iterator.linesProcessed === this.iterator.linesToIterate
@@ -1077,51 +1048,51 @@ class TxtReaderWorker {
         }
     }
 
-    private seekSporadic() {
-        if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
-            complete.call(this);
-        } else {
-            let first = this.iterator.iterateRanges[0];
-            let start = typeof first === 'number' ? first : first.start;
-            if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
-                this.iterator.offset += DEFAULT_CHUNK_SIZE;
-                if (this.iterator.offset >= this.iterator.endOffset) {
-                    this.iterator.hitLine(this.iterator.lineView);
-                    this.iterator.lineView = new Uint8Array(0);
-                    if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
-                        complete.call(this);
-                    }
-                } else {
-                    let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
-                    this.fr.readAsArrayBuffer(slice);
-                    return;
-                }
-            } else if (this.iterator.iterateRanges.length > 0) {
-                // for (let i = 0; i < this.linesIndex.length; i++) {
-                //     let mapStart = this.linesIndex[i].line;
-                //     let mapEnd = i === this.linesIndex.length - 1 ? this.lineCount : this.linesIndex[i + 1].line - 1;
-                //     if (start >= mapStart && start <= mapEnd) {
-                //         let offset = this.linesIndex[i].offset;
-                //         this.iterator.offset = offset;
-                //         let slice: Blob = this.file.slice(offset, offset + this.CHUNK_SIZE);
-                //         this.iterator.currentLineNumber = this.linesIndex[i].line;
-                //         this.fr.readAsArrayBuffer(slice);
-                //         return;
-                //     }
-                // }
-                // out of range
-                complete.call(this);
-            }
-        }
+    // private seekSporadic() {
+    //     if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
+    //         complete.call(this);
+    //     } else {
+    //         let first = this.iterator.iterateRanges[0];
+    //         let start = typeof first === 'number' ? first : first.start;
+    //         if (this.iterator.lineView.byteLength && this.iterator.currentLineNumber === start) {
+    //             this.iterator.offset += DEFAULT_CHUNK_SIZE;
+    //             if (this.iterator.offset >= this.iterator.endOffset) {
+    //                 this.iterator.hitLine(this.iterator.lineView);
+    //                 this.iterator.lineView = new Uint8Array(0);
+    //                 if (this.iterator.sporadicProcessed === this.iterator.linesToIterate) {
+    //                     complete.call(this);
+    //                 }
+    //             } else {
+    //                 let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
+    //                 this.fr.readAsArrayBuffer(slice);
+    //                 return;
+    //             }
+    //         } else if (this.iterator.iterateRanges.length > 0) {
+    //             // for (let i = 0; i < this.linesIndex.length; i++) {
+    //             //     let mapStart = this.linesIndex[i].line;
+    //             //     let mapEnd = i === this.linesIndex.length - 1 ? this.lineCount : this.linesIndex[i + 1].line - 1;
+    //             //     if (start >= mapStart && start <= mapEnd) {
+    //             //         let offset = this.linesIndex[i].offset;
+    //             //         this.iterator.offset = offset;
+    //             //         let slice: Blob = this.file.slice(offset, offset + this.CHUNK_SIZE);
+    //             //         this.iterator.currentLineNumber = this.linesIndex[i].line;
+    //             //         this.fr.readAsArrayBuffer(slice);
+    //             //         return;
+    //             //     }
+    //             // }
+    //             // out of range
+    //             complete.call(this);
+    //         }
+    //     }
 
-        function complete(this: TxtReaderWorker) {
-            respondMessage(createProgressResponseMessage(100));
-            if (this.iterator.onSeekComplete) {
-                this.iterator.onSeekComplete.call(this.iterator);
-            }
-            this.iterator = new Iterator();
-        }
-    }
+    //     function complete(this: TxtReaderWorker) {
+    //         respondMessage(createProgressResponseMessage(100));
+    //         if (this.iterator.onSeekComplete) {
+    //             this.iterator.onSeekComplete.call(this.iterator);
+    //         }
+    //         this.iterator = new Iterator();
+    //     }
+    // }
 
     private _getLines(start: number, count: number, onSeekCompleteFunc: (lines: Uint8Array[], linesBuffer: ArrayBuffer[]) => void): void {
         if (this.setPartialIterator(start, count)) {

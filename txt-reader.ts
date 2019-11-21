@@ -34,9 +34,9 @@ interface ITestRangesTaskResponse extends ITaskResponse {
     result: ISeekRange[]
 }
 
-interface IGetSporadicLinesTaskResponse extends ITaskResponse {
-    result: IGetSporadicLinesResult[]
-}
+// interface IGetSporadicLinesTaskResponse extends ITaskResponse {
+//     result: IGetSporadicLinesResult[]
+// }
 
 interface ISetChunkSizeResponse extends ITaskResponse {
     result: number;
@@ -334,12 +334,12 @@ export class TxtReader {
         });
     }
 
-    public getSporadicLines(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
-        return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', {
-            linesRanges: linesRanges,
-            decode: decode
-        });
-    }
+    // public getSporadicLines(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
+    //     return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', {
+    //         linesRanges: linesRanges,
+    //         decode: decode
+    //     });
+    // }
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
         if (!this.file) {
@@ -352,12 +352,12 @@ export class TxtReader {
         });
     }
 
-    public iterateSporadicLines(config: IIteratorConfig, linesRanges: LinesRanges): TxtReaderTask<IIterateLinesTaskResponse> {
-        return this.newTask<IIterateLinesTaskResponse>('iterateSporadicLines', {
-            config: this.getItertorConfigMessage(cloneDeep(config)),
-            lines: linesRanges
-        });
-    }
+    // public iterateSporadicLines(config: IIteratorConfig, linesRanges: LinesRanges): TxtReaderTask<IIterateLinesTaskResponse> {
+    //     return this.newTask<IIterateLinesTaskResponse>('iterateSporadicLines', {
+    //         config: this.getItertorConfigMessage(cloneDeep(config)),
+    //         lines: linesRanges
+    //     });
+    // }
 
     private getItertorConfigMessage(config: IIteratorConfig): IIteratorConfigMessage {
         let functionMap: string[] = [];
