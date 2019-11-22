@@ -208,19 +208,17 @@ class Iterator {
     // seek destination offset
     public endOffset: number = 0;
 
+    public fullIterate: boolean;
+
     // how many lines already processed
     public linesProcessed: number = 0;
 
     // current line number
     public currentLineNumber: number = 1;
 
-    public iterateRanges: LinesRanges = [];
-
     public seekRanges: ISeekRange[] = [];
 
     private currentSeekRange!: ISeekRange;
-
-    private currentSeekMaxLine: number = 0;
 
     private processedViewLength: number = 0;
 
@@ -239,28 +237,26 @@ class Iterator {
     constructor(worker: TxtReaderWorker, linesRanges?: LinesRanges) {
         if (!linesRanges) {
             this.endOffset = worker.file.size;
+            this.fullIterate = true;
         } else {
             this._setRanges(linesRanges, worker.linesIndex);
+            this.fullIterate = false;
         }
     }
 
     public shouldBreak(): boolean {
-        if (this.isPartialIterate() && this.currentSeekRange.iterateRanges.length === 0) {
+        if (!this.fullIterate && this.currentSeekRange.iterateRanges.length === 0) {
             return true;
         } else {
             return false;
         }
     }
 
-    public isPartialIterate(): boolean {
-        return this.seekRanges.length > 0;
-    }
-
     public seekNext(file: File): Blob {
         this.currentSeekRange = this.seekRanges[0];
         let slice = file.slice(this.currentSeekRange.start, this.currentSeekRange.end);
         this.currentLineNumber = this.currentSeekRange.startLine;
-        this.currentSeekMaxLine = getEnd(this.currentSeekRange.iterateRanges[this.currentSeekRange.iterateRanges.length - 1]);
+        //this.currentSeekMaxLine = getEnd(this.currentSeekRange.iterateRanges[this.currentSeekRange.iterateRanges.length - 1]);
         return slice;
     }
 
@@ -568,10 +564,9 @@ class Iterator {
     }
 
     public hitLine(lineData: Uint8Array): void {
-        let isPartialIterate: boolean = this.isPartialIterate();
         let progress = 0;
         let match = false;
-        if (isPartialIterate) {
+        if (!this.fullIterate) {
             let iterateRanges = this.currentSeekRange.iterateRanges;
             for (let i = 0; i < iterateRanges.length; i++) {
                 let range = iterateRanges[i];
@@ -592,7 +587,7 @@ class Iterator {
                     }
                 }
             }
-            if(match){
+            if (match) {
                 debugger;
             }
         } else {
@@ -635,7 +630,7 @@ class Iterator {
             this.onEachLine.call(this.eachLineScope, lineData, progress, this.currentLineNumber);
         }
 
-        if (isPartialIterate) {
+        if (!this.fullIterate) {
             if (this.shouldReportProgress(progress)) {
                 this.lastProgress = progress;
                 respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
@@ -819,7 +814,7 @@ class TxtReaderWorker {
             // }
 
             iterator.lineBreakLength = 0;
-            if (iterator.isPartialIterate()) {
+            if (!iterator.fullIterate) {
                 iterator.seekRanges.splice(0, 1);
             } else {
                 iterator.offset += DEFAULT_CHUNK_SIZE;
@@ -928,16 +923,15 @@ class TxtReaderWorker {
     }
 
     private seek() {
-        let isParitialIterate = this.iterator.isPartialIterate();
         let done: boolean;
-        if (isParitialIterate) {
+        if (!this.iterator.fullIterate) {
             done = this.iterator.seekRanges.length === 0;
         } else {
             done = this.iterator.offset >= this.iterator.endOffset;
         }
         if (done) {
             respondMessage(createProgressResponseMessage(100));
-            if (this.iterator.lineView.byteLength && !isParitialIterate) {
+            if (this.iterator.lineView.byteLength && this.iterator.fullIterate) {
                 this.iterator.hitLine(this.iterator.lineView);
                 this.iterator.lineView = new Uint8Array(0);
             }
@@ -946,7 +940,7 @@ class TxtReaderWorker {
             }
             this.iterator = new Iterator(this);
         } else {
-            if (!isParitialIterate) {
+            if (this.iterator.fullIterate) {
                 let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
                 this.fr.readAsArrayBuffer(slice);
             } else {
