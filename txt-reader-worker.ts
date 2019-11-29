@@ -251,6 +251,10 @@ class Iterator {
         } else {
             this._setRanges(linesRanges, worker.linesIndex);
             this.fullIterate = false;
+            if (this.seekRanges.length === 0) {
+                respondMessage(new ResponseMessage(false, 'Invalid linesRanges'));
+                return;
+            }
             let startLine = this.seekRanges[0].startLine;
             let lastIterateRanges = this.seekRanges[this.seekRanges.length - 1].iterateRanges;
             let endLine = lastIterateRanges.length > 0 ? getEnd(lastIterateRanges[lastIterateRanges.length - 1]) : startLine;

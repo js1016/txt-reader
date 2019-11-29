@@ -82,15 +82,15 @@ module.exports = {
     },
     'Test mixed-eol-6-lines.txt': function (browser) {
         return __awaiter(this, void 0, void 0, function () {
-            var testFile, i, i, i, i;
+            var testFile, i;
             return __generator(this, function (_a) {
                 testFile = testFiles[0];
                 setChunkSize(1, browser);
-                for (i = 1; i <= testFile.lines.length + 1; i++) {
-                    testSniffFile(testFile, browser, i);
-                }
-                testSniffFile(testFile, browser, testFile.lines.length, false);
-                testSniffFile(testFile, browser, 0);
+                // for (let i = 1; i <= testFile.lines.length + 1; i++) {
+                //     testSniffFile(testFile, browser, i);
+                // }
+                // testSniffFile(testFile, browser, testFile.lines.length, false);
+                // testSniffFile(testFile, browser, 0);
                 testLoadFile(testFile, browser);
                 testLoadFile(testFile, browser, true);
                 for (i = 1; i <= testFile.lines.length; i++) {
@@ -99,20 +99,14 @@ module.exports = {
                 testGetLines(browser, testFile, 1, testFile.lines.length + 1, false);
                 testGetLines(browser, testFile, testFile.lines.length + 1, 1, false);
                 testGetLines(browser, testFile, 0, 1, false);
-                for (i = 1; i <= testFile.lines.length; i++) {
-                    testIterateLines(browser, testFile, i, 1);
-                }
-                testIterateLines(browser, testFile, testFile.lines.length + 1, 1);
-                testIterateLines(browser, testFile, 0, 1);
-                testIterateLines(browser, testFile, Math.ceil(testFile.lines.length / 2), testFile.lines.length);
+                // for (let i = 1; i <= testFile.lines.length; i++) {
+                //     testIterateLines(browser, testFile, i, 1);
+                // }
+                // testIterateLines(browser, testFile, testFile.lines.length + 1, 1);
+                // testIterateLines(browser, testFile, 0, 1);
+                // testIterateLines(browser, testFile, Math.ceil(testFile.lines.length / 2), testFile.lines.length);
                 resetChunkSize(browser); // to do: need to remove as getSporadicLines has bug when chunk size is 1
                 testLoadFile(testFile, browser);
-                for (i = 1; i <= testFile.lines.length; i++) {
-                    testGetSporadicLines(browser, testFile, i);
-                    testIterateSporadicLines(browser, testFile, i);
-                }
-                testGetSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2), false);
-                testIterateSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
                 return [2 /*return*/];
             });
         });
@@ -120,16 +114,16 @@ module.exports = {
     'Test CBS.log': function (browser) {
         resetChunkSize(browser);
         var testFile = testFiles[1];
-        testSniffFile(testFile, browser, 1000);
+        //testSniffFile(testFile, browser, 1000);
         testLoadFile(testFiles[1], browser, true);
         for (var i = 1; i <= testFile.lines.length; i += 10000) {
             testGetLines(browser, testFile, i, 10000);
         }
-        for (var i = 1; i <= testFile.lines.length; i += 5000) {
-            testIterateLines(browser, testFile, i, 5000);
-        }
-        testGetSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
-        testIterateSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
+        // for (let i = 1; i <= testFile.lines.length; i += 5000) {
+        //     testIterateLines(browser, testFile, i, 5000);
+        // }
+        // testGetSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
+        // testIterateSporadicLines(browser, testFile, Math.ceil(testFile.lines.length / 2));
     }
 };
 function testIterateLines(browser, testFile, start, count) {
@@ -278,13 +272,14 @@ function testGetLines(browser, testFile, start, count, decode) {
                 case 0:
                     browser.click('#getLines', function () {
                         currentMethod = 'getLines';
-                    })
-                        .clearValue('#start')
-                        .setValue('#start', start.toString())
-                        .clearValue('#count')
-                        .setValue('#count', count.toString());
-                    return [4 /*yield*/, toggleCheckbox(browser, '#decode-checkbox', decode)];
+                    });
+                    return [4 /*yield*/, toggleCheckbox(browser, '#sporadic-customize', true)];
                 case 1:
+                    _a.sent();
+                    browser.clearValue('#lines-ranges')
+                        .setValue('#lines-ranges', "[{\"start\":" + start + ",\"end\":" + (start + count - 1) + "}]");
+                    return [4 /*yield*/, toggleCheckbox(browser, '#decode-checkbox', decode)];
+                case 2:
                     _a.sent();
                     browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
                     if (start > testFile.lines.length || start < 1) {
@@ -329,7 +324,7 @@ function testSniffFile(testFile, browser, sniffCount, decode) {
 }
 function verifyGetResult(testFile, browser) {
     return __awaiter(this, void 0, void 0, function () {
-        var decode, matchReg, expectResultCount, start, _a, count, _b, lineCount, _c, sniffCount, _d, pageCount, _e, i, all, outputs;
+        var decode, matchReg, expectResultCount, linesRanges, _a, _b, lines, lineCount, _c, sniffCount, _d, pageCount, _e, i, all, outputs;
         return __generator(this, function (_f) {
             switch (_f.label) {
                 case 0: return [4 /*yield*/, isChecked(browser, '#decode-checkbox')];
@@ -337,59 +332,53 @@ function verifyGetResult(testFile, browser) {
                     decode = _f.sent();
                     matchReg = /^(\d+): (.+)?$/;
                     expectResultCount = 0;
-                    if (!(currentMethod === 'getLines')) return [3 /*break*/, 4];
-                    _a = Number;
-                    return [4 /*yield*/, getValue(browser, '#start')];
+                    if (!(currentMethod === 'getLines')) return [3 /*break*/, 3];
+                    _b = (_a = JSON).parse;
+                    return [4 /*yield*/, getValue(browser, '#lines-ranges')];
                 case 2:
-                    start = _a.apply(void 0, [_f.sent()]);
-                    _b = Number;
-                    return [4 /*yield*/, getValue(browser, '#count')];
+                    linesRanges = _b.apply(_a, [_f.sent()]);
+                    lines = processLinesRanges(linesRanges, testFile.lines.length);
+                    expectResultCount = lines.length;
+                    return [3 /*break*/, 7];
                 case 3:
-                    count = _b.apply(void 0, [_f.sent()]);
-                    expectResultCount = count;
-                    if (start + count - 1 > testFile.lines.length) {
-                        expectResultCount = testFile.lines.length - start + 1;
-                    }
-                    return [3 /*break*/, 8];
-                case 4:
-                    if (!(currentMethod === 'getSporadicLines')) return [3 /*break*/, 6];
+                    if (!(currentMethod === 'getSporadicLines')) return [3 /*break*/, 5];
                     _c = Number;
                     return [4 /*yield*/, getValue(browser, '#sporadic-line-count')];
-                case 5:
+                case 4:
                     lineCount = _c.apply(void 0, [_f.sent()]);
                     expectResultCount = lineCount;
                     if (lineCount > testFile.lines.length) {
                         expectResultCount = testFile.lines.length;
                     }
-                    return [3 /*break*/, 8];
-                case 6:
-                    if (!(currentMethod === 'sniffLines')) return [3 /*break*/, 8];
+                    return [3 /*break*/, 7];
+                case 5:
+                    if (!(currentMethod === 'sniffLines')) return [3 /*break*/, 7];
                     _d = Number;
                     return [4 /*yield*/, getValue(browser, '#line-number-input')];
-                case 7:
+                case 6:
                     sniffCount = _d.apply(void 0, [_f.sent()]);
                     expectResultCount = sniffCount;
                     if (expectResultCount > testFile.lines.length) {
                         expectResultCount = testFile.lines.length;
                     }
-                    _f.label = 8;
-                case 8:
+                    _f.label = 7;
+                case 7:
                     browser.expect.element('#result-count').text.to.be.equal(expectResultCount.toString());
                     _e = Number;
                     return [4 /*yield*/, getText(browser, '#page-count')];
-                case 9:
+                case 8:
                     pageCount = _e.apply(void 0, [_f.sent()]);
                     i = 1;
-                    _f.label = 10;
-                case 10:
-                    if (!(i <= pageCount)) return [3 /*break*/, 13];
+                    _f.label = 9;
+                case 9:
+                    if (!(i <= pageCount)) return [3 /*break*/, 12];
                     browser
                         .clearValue('#page-number')
                         .setValue('#page-number', i.toString())
                         .click('#go')
                         .waitForElementPresent('#console .echo', 1000);
                     return [4 /*yield*/, getText(browser, '#console')];
-                case 11:
+                case 10:
                     all = _f.sent();
                     outputs = all.split('\n');
                     outputs.forEach(function (item) {
@@ -408,14 +397,34 @@ function verifyGetResult(testFile, browser) {
                             chai.expect(content, "Line " + lineNumber + " should be: " + expectContent).to.be.equal(expectContent);
                         }
                     });
-                    _f.label = 12;
-                case 12:
+                    _f.label = 11;
+                case 11:
                     i++;
-                    return [3 /*break*/, 10];
-                case 13: return [2 /*return*/];
+                    return [3 /*break*/, 9];
+                case 12: return [2 /*return*/];
             }
         });
     });
+}
+function processLinesRanges(linesRanges, lineCount) {
+    var result = [];
+    for (var i = 0; i < linesRanges.length; i++) {
+        var range = linesRanges[i];
+        if (typeof range === 'number') {
+            insert(range);
+        }
+        else {
+            for (var j = range.start; j <= range.end; j++) {
+                insert(j);
+            }
+        }
+    }
+    return result.sort();
+    function insert(lineNumber) {
+        if (result.indexOf(lineNumber) === -1 && lineNumber >= 0 && lineNumber <= lineCount) {
+            result.push(lineNumber);
+        }
+    }
 }
 function isChecked(browser, selector) {
     return new Promise(function (resolve) {
@@ -495,6 +504,7 @@ function resetChunkSize(browser) {
 }
 function testLoadFile(testFile, browser, doIterate) {
     if (doIterate === void 0) { doIterate = false; }
+    doIterate = false;
     var filename = path.resolve(testFile.filePath);
     browser.setValue('#file-input', filename)
         .click('#loadFile');
