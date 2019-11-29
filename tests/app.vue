@@ -46,7 +46,7 @@
             <div v-if="activeMethod.acceptsLinesRanges">
                 <div>
                     <span>Auto generate linesRanges by lineNumber:</span>
-                    <input type="number" v-model="autoGenerateLineNumberStr" />
+                    <input type="number" v-model="autoGenerateLineNumberStr" id="autogen-linenumber" />
                     <span>lines</span>
                     <button @click="shuffle">Shuffle</button>
                 </div>

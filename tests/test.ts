@@ -85,6 +85,13 @@ module.exports = {
         for (let i = 1; i <= testFile.lines.length; i += 10000) {
             testGetLines(browser, testFile, i, 10000);
         }
+        testGetLinesMultiple(browser, testFile, 10);
+        testGetLinesMultiple(browser, testFile, 100);
+        testGetLinesMultiple(browser, testFile, 1000);
+        testGetLinesMultiple(browser, testFile, 10000);
+        testGetLinesMultiple(browser, testFile, 20000);
+        testGetLinesMultiple(browser, testFile, 30000);
+        testGetLinesMultiple(browser, testFile, 300000);
         // for (let i = 1; i <= testFile.lines.length; i += 5000) {
         //     testIterateLines(browser, testFile, i, 5000);
         // }
@@ -185,20 +192,30 @@ async function testGetSporadicLines(browser: NightwatchAPI, testFile: TestFile, 
     verifyGetResult(testFile, browser);
 }
 
+async function testGetLinesMultiple(browser: NightwatchAPI, testFile: TestFile, lineNumber: number, decode: boolean = true) {
+    browser.click('#getLines', function () {
+        currentMethod = 'getLines';
+    })
+        .clearValue('#autogen-linenumber')
+        .setValue('#autogen-linenumber', lineNumber.toString());
+    _testGetLines(browser, testFile, decode);
+}
+
+async function _testGetLines(browser: NightwatchAPI, testFile: TestFile, decode: boolean = true) {
+    await toggleCheckbox(browser, '#decode-checkbox', decode);
+    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
+    verifyGetResult(testFile, browser);
+}
+
 async function testGetLines(browser: NightwatchAPI, testFile: TestFile, start: number, count: number, decode: boolean = true) {
+    let linesRangesJSONstring = count === 1 ? `[${start}]` : `[{"start":${start},"end":${start + count - 1}}]`;
     browser.click('#getLines', function () {
         currentMethod = 'getLines';
     });
     await toggleCheckbox(browser, '#sporadic-customize', true);
     browser.clearValue('#lines-ranges')
-        .setValue('#lines-ranges', `[{"start":${start},"end":${start + count - 1}}]`);
-    await toggleCheckbox(browser, '#decode-checkbox', decode);
-    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
-    if (start > testFile.lines.length || start < 1) {
-        browser.expect.element('#console .error').to.be.present;
-    } else {
-        verifyGetResult(testFile, browser);
-    }
+        .setValue('#lines-ranges', linesRangesJSONstring);
+    _testGetLines(browser, testFile, decode);
 }
 
 async function testSniffFile(testFile: TestFile, browser: NightwatchAPI, sniffCount: number, decode: boolean = true) {
@@ -239,32 +256,36 @@ async function verifyGetResult(testFile: TestFile, browser: NightwatchAPI) {
             expectResultCount = testFile.lines.length;
         }
     }
-    browser.expect.element('#result-count').text.to.be.equal(expectResultCount.toString());
-    let pageCount: number = Number(await getText(browser, '#page-count'));
-    for (let i = 1; i <= pageCount; i++) {
-        browser
-            .clearValue('#page-number')
-            .setValue('#page-number', i.toString())
-            .click('#go')
-            .waitForElementPresent('#console .echo', 1000);
-        let all = await getText(browser, '#console');
-        let outputs = all.split('\n');
-        outputs.forEach(item => {
-            let match = matchReg.exec(item);
-            chai.expect(match).not.to.be.null;
-            if (match) {
-                let lineNumber = Number(match[1]);
-                let content = match[2] ? match[2] : '';
-                if (!decode && content.length > 0) {
-                    let outputArr = new Uint8Array(content.split(',').map(function (i) {
-                        return Number(i);
-                    }));
-                    content = decoder.decode(outputArr);
+    if (expectResultCount === 0) {
+        browser.expect.element('#console .error').to.be.present;
+    } else {
+        browser.expect.element('#result-count').text.to.be.equal(expectResultCount.toString());
+        let pageCount: number = Number(await getText(browser, '#page-count'));
+        for (let i = 1; i <= pageCount; i++) {
+            browser
+                .clearValue('#page-number')
+                .setValue('#page-number', i.toString())
+                .click('#go')
+                .waitForElementPresent('#console .echo', 1000);
+            let all = await getText(browser, '#console');
+            let outputs = all.split('\n');
+            outputs.forEach(item => {
+                let match = matchReg.exec(item);
+                chai.expect(match).not.to.be.null;
+                if (match) {
+                    let lineNumber = Number(match[1]);
+                    let content = match[2] ? match[2] : '';
+                    if (!decode && content.length > 0) {
+                        let outputArr = new Uint8Array(content.split(',').map(function (i) {
+                            return Number(i);
+                        }));
+                        content = decoder.decode(outputArr);
+                    }
+                    let expectContent = testFile.lines[lineNumber - 1];
+                    chai.expect(content, `Line ${lineNumber} should be: ${expectContent}`).to.be.equal(expectContent);
                 }
-                let expectContent = testFile.lines[lineNumber - 1];
-                chai.expect(content, `Line ${lineNumber} should be: ${expectContent}`).to.be.equal(expectContent);
-            }
-        });
+            });
+        }
     }
 }
 
@@ -282,7 +303,7 @@ function processLinesRanges(linesRanges: LinesRanges, lineCount: number): number
     }
     return result.sort();
     function insert(lineNumber: number) {
-        if (result.indexOf(lineNumber) === -1 && lineNumber >= 0 && lineNumber <= lineCount) {
+        if (result.indexOf(lineNumber) === -1 && lineNumber > 0 && lineNumber <= lineCount) {
             result.push(lineNumber);
         }
     }

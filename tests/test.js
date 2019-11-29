@@ -119,6 +119,13 @@ module.exports = {
         for (var i = 1; i <= testFile.lines.length; i += 10000) {
             testGetLines(browser, testFile, i, 10000);
         }
+        testGetLinesMultiple(browser, testFile, 10);
+        testGetLinesMultiple(browser, testFile, 100);
+        testGetLinesMultiple(browser, testFile, 1000);
+        testGetLinesMultiple(browser, testFile, 10000);
+        testGetLinesMultiple(browser, testFile, 20000);
+        testGetLinesMultiple(browser, testFile, 30000);
+        testGetLinesMultiple(browser, testFile, 300000);
         // for (let i = 1; i <= testFile.lines.length; i += 5000) {
         //     testIterateLines(browser, testFile, i, 5000);
         // }
@@ -264,12 +271,43 @@ function testGetSporadicLines(browser, testFile, lineCount, decode) {
         });
     });
 }
-function testGetLines(browser, testFile, start, count, decode) {
+function testGetLinesMultiple(browser, testFile, lineNumber, decode) {
+    if (decode === void 0) { decode = true; }
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            browser.click('#getLines', function () {
+                currentMethod = 'getLines';
+            })
+                .clearValue('#autogen-linenumber')
+                .setValue('#autogen-linenumber', lineNumber.toString());
+            _testGetLines(browser, testFile, decode);
+            return [2 /*return*/];
+        });
+    });
+}
+function _testGetLines(browser, testFile, decode) {
     if (decode === void 0) { decode = true; }
     return __awaiter(this, void 0, void 0, function () {
         return __generator(this, function (_a) {
             switch (_a.label) {
+                case 0: return [4 /*yield*/, toggleCheckbox(browser, '#decode-checkbox', decode)];
+                case 1:
+                    _a.sent();
+                    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
+                    verifyGetResult(testFile, browser);
+                    return [2 /*return*/];
+            }
+        });
+    });
+}
+function testGetLines(browser, testFile, start, count, decode) {
+    if (decode === void 0) { decode = true; }
+    return __awaiter(this, void 0, void 0, function () {
+        var linesRangesJSONstring;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
                 case 0:
+                    linesRangesJSONstring = count === 1 ? "[" + start + "]" : "[{\"start\":" + start + ",\"end\":" + (start + count - 1) + "}]";
                     browser.click('#getLines', function () {
                         currentMethod = 'getLines';
                     });
@@ -277,17 +315,8 @@ function testGetLines(browser, testFile, start, count, decode) {
                 case 1:
                     _a.sent();
                     browser.clearValue('#lines-ranges')
-                        .setValue('#lines-ranges', "[{\"start\":" + start + ",\"end\":" + (start + count - 1) + "}]");
-                    return [4 /*yield*/, toggleCheckbox(browser, '#decode-checkbox', decode)];
-                case 2:
-                    _a.sent();
-                    browser.click('#execute').waitForElementNotPresent('.status.running', 10000);
-                    if (start > testFile.lines.length || start < 1) {
-                        browser.expect.element('#console .error').to.be.present;
-                    }
-                    else {
-                        verifyGetResult(testFile, browser);
-                    }
+                        .setValue('#lines-ranges', linesRangesJSONstring);
+                    _testGetLines(browser, testFile, decode);
                     return [2 /*return*/];
             }
         });
@@ -363,22 +392,26 @@ function verifyGetResult(testFile, browser) {
                     }
                     _f.label = 7;
                 case 7:
+                    if (!(expectResultCount === 0)) return [3 /*break*/, 8];
+                    browser.expect.element('#console .error').to.be.present;
+                    return [3 /*break*/, 13];
+                case 8:
                     browser.expect.element('#result-count').text.to.be.equal(expectResultCount.toString());
                     _e = Number;
                     return [4 /*yield*/, getText(browser, '#page-count')];
-                case 8:
+                case 9:
                     pageCount = _e.apply(void 0, [_f.sent()]);
                     i = 1;
-                    _f.label = 9;
-                case 9:
-                    if (!(i <= pageCount)) return [3 /*break*/, 12];
+                    _f.label = 10;
+                case 10:
+                    if (!(i <= pageCount)) return [3 /*break*/, 13];
                     browser
                         .clearValue('#page-number')
                         .setValue('#page-number', i.toString())
                         .click('#go')
                         .waitForElementPresent('#console .echo', 1000);
                     return [4 /*yield*/, getText(browser, '#console')];
-                case 10:
+                case 11:
                     all = _f.sent();
                     outputs = all.split('\n');
                     outputs.forEach(function (item) {
@@ -397,11 +430,11 @@ function verifyGetResult(testFile, browser) {
                             chai.expect(content, "Line " + lineNumber + " should be: " + expectContent).to.be.equal(expectContent);
                         }
                     });
-                    _f.label = 11;
-                case 11:
+                    _f.label = 12;
+                case 12:
                     i++;
-                    return [3 /*break*/, 9];
-                case 12: return [2 /*return*/];
+                    return [3 /*break*/, 10];
+                case 13: return [2 /*return*/];
             }
         });
     });
@@ -421,7 +454,7 @@ function processLinesRanges(linesRanges, lineCount) {
     }
     return result.sort();
     function insert(lineNumber) {
-        if (result.indexOf(lineNumber) === -1 && lineNumber >= 0 && lineNumber <= lineCount) {
+        if (result.indexOf(lineNumber) === -1 && lineNumber > 0 && lineNumber <= lineCount) {
             result.push(lineNumber);
         }
     }
