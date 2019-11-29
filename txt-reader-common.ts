@@ -36,3 +36,8 @@ export interface ISeekRange {
     endLine: number;
     iterateRanges: LinesRanges;
 }
+
+export type GetLineItem = {
+    range: LinesRange | number;
+    contents: (string | Uint8Array)[];
+}

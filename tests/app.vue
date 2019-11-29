@@ -101,14 +101,13 @@ import Vue from "vue";
 import cloneDeep from "lodash.clonedeep";
 import { Component, Prop, Watch } from "vue-property-decorator";
 import { TxtReader, IIteratorConfig } from "../txt-reader";
-import { LinesRange } from "../txt-reader-common";
+import { LinesRange, GetLineItem } from "../txt-reader-common";
 import { IIteratorConfigMessage, LinesRanges } from "../txt-reader-common";
 
 let txtReader = window.txtReader;
 type Methods = {
     loadFile: MethodConfig;
     getLines: MethodConfig;
-    getLines2: MethodConfig;
     //getSporadicLines: MethodConfig;
     iterateLines: MethodConfig;
     //iterateSporadicLines: MethodConfig;
@@ -215,19 +214,11 @@ export default class App extends Vue {
             hasDecode: false,
             hasLineNumber: false
         },
-        getLines2: {
-            signature: "getLines2(linesRanges[, decode])",
+        getLines: {
+            signature: "getLines(linesRanges[, decode])",
             hasStartCount: false,
             iteratable: false,
             acceptsLinesRanges: true,
-            hasDecode: true,
-            hasLineNumber: false
-        },
-        getLines: {
-            signature: "getLines(start, count[, decode])",
-            hasStartCount: true,
-            iteratable: false,
-            acceptsLinesRanges: false,
             hasDecode: true,
             hasLineNumber: false
         },
@@ -461,50 +452,29 @@ export default class App extends Vue {
             case "sniffLines":
                 this.sniffLines();
                 break;
-            case "getLines2":
-                this.getLines2();
-                break;
             case "testRanges":
                 this.testRanges();
                 break;
         }
     }
 
-    saveResults(
-        results: (Uint8Array | string)[],
-        start: number,
-        count: number
-    ) {
+    saveResults(results: GetLineItem[]) {
         this.getResults = [];
         let needDecode = typeof results[0] !== "string";
         for (let i = 0; i < results.length; i++) {
-            this.getResults.push({
-                lineNumber: start + i,
-                value: needDecode
-                    ? results[i].toString()
-                    : (results[i] as string)
-            });
+            let range = results[i].range;
+            let lineNumber = typeof range === "number" ? range : range.start;
+            for (let j = 0; j < results[i].contents.length; j++) {
+                this.getResults.push({
+                    lineNumber: lineNumber + j,
+                    value: needDecode
+                        ? (results[i].contents[j] as string)
+                        : txtReader.utf8decoder.decode(results[i].contents[
+                              j
+                          ] as Uint8Array)
+                });
+            }
         }
-    }
-
-    getLines() {
-        this.running = true;
-        let decode = this.decode;
-        txtReader
-            .getLines(this.start, this.count, decode)
-            .progress(progress => {
-                this.progress = progress;
-            })
-            .then(response => {
-                console.log(response);
-                this.running = false;
-                this.log(`getLine completed in ${response.timeTaken}ms`);
-                this.saveResults(response.result, this.start, this.count);
-            })
-            .catch(reason => {
-                this.running = false;
-                this.error(`getLine encountered error: ${reason}`);
-            });
     }
 
     testRanges() {
@@ -604,22 +574,24 @@ export default class App extends Vue {
         }
     }
 
-    getLines2() {
+    getLines() {
         if (this.linesRanges.length > 0) {
             let decode = this.decode;
             this.running = true;
             txtReader
-                .getLines2(this.linesRanges, decode)
+                .getLines(this.linesRanges, decode)
                 .progress(progress => {
                     this.progress = progress;
                 })
                 .then(response => {
                     this.running = false;
+                    this.log(`getLines completed in ${response.timeTaken}ms`);
                     console.log(response);
+                    this.saveResults(response.result);
                 })
                 .catch(reason => {
                     this.running = false;
-                    this.error(`getLine2 encountered error: ${reason}`);
+                    this.error(`getLines encountered error: ${reason}`);
                 });
         }
     }
@@ -715,23 +687,23 @@ export default class App extends Vue {
 
     sniffLines() {
         if (this.file) {
-            let decode = this.decode;
-            this.running = true;
-            txtReader
-                .sniffLines(this.file, this.lineNumber, decode)
-                .progress(progress => {
-                    this.progress = progress;
-                })
-                .then(response => {
-                    this.running = false;
-                    this.log(`sniffLines completed in ${response.timeTaken}ms`);
-                    console.log(response);
-                    this.saveResults(response.result, 1, this.lineNumber);
-                })
-                .catch(reason => {
-                    this.running = false;
-                    this.error(`sniffLInes encountered error: ${reason}`);
-                });
+            // let decode = this.decode;
+            // this.running = true;
+            // txtReader
+            //     .sniffLines(this.file, this.lineNumber, decode)
+            //     .progress(progress => {
+            //         this.progress = progress;
+            //     })
+            //     .then(response => {
+            //         this.running = false;
+            //         this.log(`sniffLines completed in ${response.timeTaken}ms`);
+            //         console.log(response);
+            //         this.saveResults(response.result, 1, this.lineNumber);
+            //     })
+            //     .catch(reason => {
+            //         this.running = false;
+            //         this.error(`sniffLInes encountered error: ${reason}`);
+            //     });
         }
     }
 

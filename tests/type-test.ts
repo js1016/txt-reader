@@ -19,7 +19,8 @@ a.loadFile(file).then(response => {
 
 })
 
-a.getLines(1, 20).then(response => {
+a.getLines([1],false).then(response => {
+    
 })
 a.iterateLines({
     eachLine: function (a, b, c) {

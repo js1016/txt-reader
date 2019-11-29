@@ -1,7 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import 'promise-polyfill/src/polyfill'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult, LinesRange, ISeekRange } from './txt-reader-common'
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRanges, IGetSporadicLinesResult, LinesRange, ISeekRange, GetLineItem } from './txt-reader-common'
 import { TextDecoder_Instance } from 'text-encoding-shim'
 import cloneDeep from "lodash.clonedeep"
 
@@ -20,14 +20,7 @@ interface ISniffLinesTaskResponse extends ITaskResponse {
 }
 
 interface IGetLinesTaskResponse extends ITaskResponse {
-    result: (string | Uint8Array)[];
-}
-
-interface IGetLines2TaskResponse extends ITaskResponse {
-    result: {
-        range: LinesRange | number;
-        contents: (string | Uint8Array)[];
-    }[]
+    result: GetLineItem[]
 }
 
 interface ITestRangesTaskResponse extends ITaskResponse {
@@ -311,35 +304,13 @@ export class TxtReader {
         });
     }
 
-    public getLines2(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetLines2TaskResponse> {
-        if (!this.file) {
-            return this.newTask<IGetLines2TaskResponse>('getLines2', new Error('TxtReader has not loaded a file yet.'));
-        }
-        console.log('getlines2', linesRanges);
-        return this.newTask<IGetLines2TaskResponse>('getLines2', linesRanges).then((response) => {
-        });
-
-    }
-
-    public getLines(start: number, count: number, decode: boolean = true): TxtReaderTask<IGetLinesTaskResponse> {
+    public getLines(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetLinesTaskResponse> {
         if (!this.file) {
             return this.newTask<IGetLinesTaskResponse>('getLines', new Error('TxtReader has not loaded a file yet.'));
         }
-        return this.newTask<IGetLinesTaskResponse>('getLines', { start: start, count: count }).then((response) => {
-            for (let i = 0; i < response.result.length; i++) {
-                if (decode) {
-                    response.result[i] = this.utf8decoder.decode(response.result[i] as any as Uint8Array);
-                }
-            }
+        return this.newTask<IGetLinesTaskResponse>('getLines', { linesRanges: linesRanges, decode: decode }).then((response) => {
         });
     }
-
-    // public getSporadicLines(linesRanges: LinesRanges, decode: boolean = true): TxtReaderTask<IGetSporadicLinesTaskResponse> {
-    //     return this.newTask<IGetSporadicLinesTaskResponse>('getSporadicLines', {
-    //         linesRanges: linesRanges,
-    //         decode: decode
-    //     });
-    // }
 
     public iterateLines(config: IIteratorConfig, start?: number, count?: number): TxtReaderTask<IIterateLinesTaskResponse> {
         if (!this.file) {

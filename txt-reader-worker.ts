@@ -1,8 +1,7 @@
 import { TextDecoder } from 'text-encoding-shim'
 import './polyfill'
-import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult, ISeekRange } from './txt-reader-common'
-import { worker } from 'cluster';
-import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from 'constants';
+import { IRequestMessage, IResponseMessage, IIteratorConfigMessage, LinesRange, LinesRanges, IGetSporadicLinesResult, ISeekRange, GetLineItem } from './txt-reader-common'
+import { start } from 'repl';
 
 interface ILineIndexRange {
     start: number;
@@ -33,8 +32,6 @@ let txtReaderWorker: TxtReaderWorker | null = null;
 let sniffWorker: TxtReaderWorker | null = null;
 
 let verboseLogging: boolean = false;
-
-const useTransferrable: boolean = navigator.userAgent.indexOf('Firefox') > -1;
 
 const respondMessage = (responseMessage: ResponseMessage): void => {
     if (responseMessage.done) {
@@ -85,6 +82,10 @@ let getEnd = (linesRange: LinesRange | number): number => {
     return typeof linesRange === 'number' ? linesRange : linesRange.end;
 };
 
+let getCount = (linesRange: LinesRange | number): number => {
+    return typeof linesRange === 'number' ? 1 : linesRange.end - linesRange.start + 1;
+};
+
 self.addEventListener('message', (event: MessageEvent) => {
     let req: IRequestMessage = event.data;
     if (verboseLogging) {
@@ -112,12 +113,7 @@ self.addEventListener('message', (event: MessageEvent) => {
             break;
         case 'getLines':
             if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).getLines(req.data.start, req.data.count);
-            }
-            break;
-        case 'getLines2':
-            if (validateWorker()) {
-                (<TxtReaderWorker>txtReaderWorker).getLines2(req.data);
+                (<TxtReaderWorker>txtReaderWorker).getLines(req.data);
                 break;
             }
         case 'iterateLines':
@@ -185,7 +181,7 @@ class Iterator {
 
     // onEachLine callback function for internal methods
     // internal methods like: loadFile, getLines have their own onEachLine callback
-    public onEachLineInternal!: (this: Iterator, lineDate: Uint8Array) => void;
+    public onEachLineInternal: ((this: Iterator, lineDate: Uint8Array) => void) | null = null;
 
     // onSeekComplete callback function
     public onSeekComplete!: (this: Iterator) => void;
@@ -220,9 +216,23 @@ class Iterator {
 
     private currentSeekRange!: ISeekRange;
 
+    private currentIterateRange: (LinesRange | number) | null = null;
+
     private processedViewLength: number = 0;
 
     public lineBreakLength: number = 0;
+
+    public isGetLine: boolean = false;
+
+    public getLineResult: GetLineItem[] = [];
+
+    public lastGetLineItem: GetLineItem | null = null;
+
+    public getLineNeedDecode: boolean = false;
+
+    public expectLineNumber: number | null = null;
+
+    private iterateProgress: number[] = [];
 
     // last progress
     public lastProgress: number = 0;
@@ -241,11 +251,30 @@ class Iterator {
         } else {
             this._setRanges(linesRanges, worker.linesIndex);
             this.fullIterate = false;
+            let startLine = this.seekRanges[0].startLine;
+            let lastIterateRanges = this.seekRanges[this.seekRanges.length - 1].iterateRanges;
+            let endLine = lastIterateRanges.length > 0 ? getEnd(lastIterateRanges[lastIterateRanges.length - 1]) : startLine;
+            let totalLines = endLine - startLine + 1;
+            if (totalLines <= 101) {
+                for (let i = startLine; i <= endLine; i++) {
+                    this.iterateProgress.push(i);
+                }
+            } else {
+                let per = Math.round(totalLines / 100);
+                let line = startLine;
+                for (let i = 0; i < 101; i++) {
+                    this.iterateProgress.push(line);
+                    line += per;
+                }
+                if (this.iterateProgress[100] > endLine) {
+                    this.iterateProgress[100] = endLine;
+                }
+            }
         }
     }
 
     public shouldBreak(): boolean {
-        if (!this.fullIterate && this.currentSeekRange.iterateRanges.length === 0) {
+        if (!this.fullIterate && this.currentSeekRange.iterateRanges.length === 0 && this.currentLineNumber > getEnd(this.currentIterateRange as LinesRange | number)) {
             return true;
         } else {
             return false;
@@ -256,8 +285,22 @@ class Iterator {
         this.currentSeekRange = this.seekRanges[0];
         let slice = file.slice(this.currentSeekRange.start, this.currentSeekRange.end);
         this.currentLineNumber = this.currentSeekRange.startLine;
+        this.iterateNext();
         //this.currentSeekMaxLine = getEnd(this.currentSeekRange.iterateRanges[this.currentSeekRange.iterateRanges.length - 1]);
         return slice;
+    }
+
+    private iterateNext() {
+        if (this.currentSeekRange.iterateRanges.length) {
+            this.currentIterateRange = this.currentSeekRange.iterateRanges.splice(0, 1)[0];
+            this.expectLineNumber = getStart(this.currentIterateRange);
+            if (this.isGetLine) {
+                this.lastGetLineItem = {
+                    range: this.currentIterateRange,
+                    contents: []
+                };
+            }
+        }
     }
 
     private _setRanges(iterateRanges: LinesRanges, linesIndex: ILineIndexRange[]) {
@@ -303,7 +346,7 @@ class Iterator {
                     for (let k = i; k < linesIndex.length; k++) {
                         let delta = end - linesIndex[k].end;
                         if (k === i) {
-                            if (delta <= 0) {
+                            if (delta <= 0 || i === linesIndex.length - 1) {
                                 seekRange.end = linesIndex[k].end;
                                 seekRange.endLine = linesIndex[k].endLine;
                                 break;
@@ -566,29 +609,20 @@ class Iterator {
     public hitLine(lineData: Uint8Array): void {
         let progress = 0;
         let match = false;
+        let iterateComplete = false;
         if (!this.fullIterate) {
-            let iterateRanges = this.currentSeekRange.iterateRanges;
-            for (let i = 0; i < iterateRanges.length; i++) {
-                let range = iterateRanges[i];
-                if (typeof range === 'number') {
-                    if (this.currentLineNumber === range) {
-                        match = true;
-                        iterateRanges.splice(i, 1);
-                        break;
-                    }
+            if (this.currentLineNumber === this.expectLineNumber) {
+                match = true;
+                //debugger;
+                if (this.expectLineNumber === getEnd(this.currentIterateRange as LinesRange | number)) {
+                    iterateComplete = true;
                 } else {
-                    if (this.currentLineNumber >= range.start && this.currentLineNumber < range.end) {
-                        match = true;
-                        break;
-                    } else if (this.currentLineNumber === range.end) {
-                        match = true;
-                        iterateRanges.splice(i, 1);
-                        break;
-                    }
+                    this.expectLineNumber++;
                 }
             }
-            if (match) {
-                debugger;
+            if (this.currentLineNumber === this.iterateProgress[0]) {
+                respondMessage(createProgressResponseMessage(101 - this.iterateProgress.length));
+                this.iterateProgress.splice(0, 1);
             }
         } else {
             match = true;
@@ -608,14 +642,30 @@ class Iterator {
                     }
                 } else if (last.end !== 0) {
                     let isLast = this.processedViewLength + lineData.length + this.lineBreakLength >= this.endOffset;
+                    let overSize = lineData.length > this.indexSize;
                     this.linesIndex.push({
                         start: this.processedViewLength,
                         startLine: this.currentLineNumber,
-                        end: isLast ? this.processedViewLength + lineData.length : 0,
-                        endLine: isLast ? this.currentLineNumber : 0
+                        end: isLast || overSize ? this.processedViewLength + lineData.length : 0,
+                        endLine: isLast || overSize ? this.currentLineNumber : 0
                     });
                 }
             }
+        }
+        if (this.isGetLine && match) {
+            if (lineData.buffer.byteLength != lineData.byteLength) {
+                lineData = new Uint8Array(lineData);
+            }
+            if (this.lastGetLineItem) {
+                this.lastGetLineItem.contents.push(this.getLineNeedDecode ? utf8decoder.decode(lineData) : lineData);
+                if (iterateComplete) {
+                    this.getLineResult.push(this.lastGetLineItem);
+                    this.lastGetLineItem = null;
+                }
+            }
+        }
+        if (match && iterateComplete) {
+            this.iterateNext();
         }
         if (this.onEachLineInternal && match) {
             if (lineData.buffer.byteLength != lineData.byteLength) {
@@ -631,10 +681,10 @@ class Iterator {
         }
 
         if (!this.fullIterate) {
-            if (this.shouldReportProgress(progress)) {
-                this.lastProgress = progress;
-                respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
-            }
+            // if (this.shouldReportProgress(progress)) {
+            //     this.lastProgress = progress;
+            //     respondMessage(createProgressResponseMessage(progress < 100 ? progress : 100));
+            // }
         }
         this.processedViewLength += lineData.length + this.lineBreakLength;
         this.currentLineNumber++;
@@ -832,6 +882,9 @@ class TxtReaderWorker {
         } else {
             this.iterator.buildIndex = true;
             this.iterator.indexSize = Math.round(file.size / 1000);
+            if (this.iterator.indexSize === 0) {
+                this.iterator.indexSize = 1;
+            }
         }
         if (onNewLineConfig) {
             this.iterator.bindEachLineFromConfig(this.stringToFunction(onNewLineConfig));
@@ -863,7 +916,7 @@ class TxtReaderWorker {
         });
     }
 
-    private iterateLinesInternal(onNewLineFunc: (this: Iterator, lineDate: Uint8Array) => void, onSeekComplete?: (this: Iterator) => void) {
+    private iterateLinesInternal(onNewLineFunc: ((this: Iterator, lineDate: Uint8Array) => void) | null, onSeekComplete?: (this: Iterator) => void) {
         this.iterator.onEachLineInternal = onNewLineFunc;
         if (onSeekComplete) {
             this.iterator.onSeekComplete = onSeekComplete;
@@ -931,7 +984,7 @@ class TxtReaderWorker {
         }
         if (done) {
             respondMessage(createProgressResponseMessage(100));
-            if (this.iterator.lineView.byteLength && this.iterator.fullIterate) {
+            if (this.iterator.lineView.byteLength) {
                 this.iterator.hitLine(this.iterator.lineView);
                 this.iterator.lineView = new Uint8Array(0);
             }
@@ -944,55 +997,24 @@ class TxtReaderWorker {
                 let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
                 this.fr.readAsArrayBuffer(slice);
             } else {
+                if (this.iterator.lineView.byteLength) {
+                    this.iterator.hitLine(this.iterator.lineView);
+                    this.iterator.lineView = new Uint8Array(0);
+                }
                 this.fr.readAsArrayBuffer(this.iterator.seekNext(this.file));
             }
         }
     }
 
-    private _getLines(start: number, count: number, onSeekCompleteFunc: (lines: Uint8Array[], linesBuffer: ArrayBuffer[]) => void): void {
-        // if (this.setPartialIterator(start, count)) {
-        //     let lines: Uint8Array[] = [];
-        //     let linesBuffer: ArrayBuffer[] = [];
-        //     this.iterateLinesInternal((line: Uint8Array) => {
-        //         lines.push(line);
-        //         if (useTransferrable) {
-        //             linesBuffer.push(line.buffer);
-        //         }
-        //     }, () => {
-        //         setTimeout(() => {
-        //             onSeekCompleteFunc(lines, linesBuffer);
-        //         }, 0);
-        //     });
-        // }
-    }
-
-    public getLines(start: number, count: number): void {
-        this._getLines(start, count, (lines, linesBuffer) => {
-            if (useTransferrable) {
-                respondTransferrableMessage(new ResponseMessage(lines), linesBuffer);
-            } else {
-                respondMessage(new ResponseMessage(lines));
-            }
-        });
-    }
-
-    public getLines2(linesRanges: LinesRanges): void {
-        this.iterator = new Iterator(this, linesRanges);
-        let lines: Uint8Array[] = [];
-        let linesBuffer: ArrayBuffer[] = [];
-        this.iterateLinesInternal((line: Uint8Array) => {
-            lines.push(line);
-            if (useTransferrable) {
-                linesBuffer.push(line.buffer);
-            }
-        }, () => {
+    public getLines(data: { linesRanges: LinesRanges, decode: boolean }): void {
+        this.iterator = new Iterator(this, data.linesRanges);
+        this.iterator.isGetLine = true;
+        this.iterator.getLineNeedDecode = data.decode;
+        this.iterateLinesInternal(null, () => {
+            let result = this.iterator.getLineResult;
             setTimeout(() => {
-                if (useTransferrable) {
-                    respondTransferrableMessage(new ResponseMessage(lines), linesBuffer);
-                } else {
-                    respondMessage(new ResponseMessage(lines));
-                }
-            }, 0);
+                respondMessage(new ResponseMessage(result));
+            });
         });
     }
 
