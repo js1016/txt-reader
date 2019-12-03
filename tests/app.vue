@@ -46,9 +46,19 @@
             <div v-if="activeMethod.acceptsLinesRanges">
                 <div>
                     <span>Auto generate linesRanges by lineNumber:</span>
-                    <input type="number" v-model="autoGenerateLineNumberStr" id="autogen-linenumber" />
+                    <input
+                        type="number"
+                        v-model="autoGenerateLineNumberStr"
+                        id="autogen-linenumber"
+                    />
                     <span>lines</span>
                     <button @click="shuffle">Shuffle</button>
+                </div>
+                <div>
+                    <span>Generate random linesRanges by lineNumber:</span>
+                    <input type="number" v-model="randomLineNumberStr" id="random-linenumber" />
+                    <span>lines</span>
+                    <button id="generate-random" @click="generateRandomLinesRanges">Generate</button>
                 </div>
                 <div>
                     <span>linesRanges:</span>
@@ -174,6 +184,10 @@ function shuffle<T>(a: T[]): T[] {
     return a;
 }
 
+function getRandomInt(min: number, max: number): number {
+    return Math.round(Math.random() * (max - min) + min);
+}
+
 @Component
 export default class App extends Vue {
     chunkSizeValue: string = "104857600";
@@ -181,6 +195,7 @@ export default class App extends Vue {
     getResults: GetResults = [];
     isFileLoaded: boolean = false;
     autoGenerateLineNumberStr: string = "";
+    randomLineNumberStr: string = "";
     pageNumberValue: string = "1";
     linesRangesString: string = "";
     customizedLinesRanges: boolean = false;
@@ -286,6 +301,10 @@ export default class App extends Vue {
 
     get autoGenerateLineNumber(): number {
         return Number(this.autoGenerateLineNumberStr);
+    }
+
+    get randomLineNumber(): number {
+        return Number(this.randomLineNumberStr);
     }
 
     @Watch("getResults")
@@ -736,6 +755,29 @@ export default class App extends Vue {
             };
             fr.readAsText(this.mapFile);
         }
+    }
+
+    generateRandomLinesRanges() {
+        this.linesRanges = [];
+        let count = 0;
+        while (count < this.randomLineNumber) {
+            let startLine = getRandomInt(1, this.lineCount);
+            let fetchNumber = getRandomInt(1, 10);
+            count += fetchNumber;
+            let overflow = 0;
+            if (count >= this.randomLineNumber) {
+                overflow = count - this.randomLineNumber;
+            }
+            if (fetchNumber === 1) {
+                this.linesRanges.push(startLine);
+            } else {
+                this.linesRanges.push({
+                    start: startLine,
+                    end: startLine + fetchNumber - 1 - overflow
+                });
+            }
+        }
+        this.linesRangesString = JSON.stringify(this.linesRanges);
     }
 
     shuffle() {

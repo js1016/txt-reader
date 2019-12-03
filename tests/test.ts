@@ -4,6 +4,7 @@ import * as path from "path";
 import * as chai from "chai";
 import { TextDecoder } from "util";
 import { LinesRange, LinesRanges } from "../txt-reader-common";
+import { start } from "repl";
 
 class TestFile {
     filePath: string;
@@ -89,9 +90,9 @@ module.exports = {
         testGetLinesMultiple(browser, testFile, 100);
         testGetLinesMultiple(browser, testFile, 1000);
         testGetLinesMultiple(browser, testFile, 10000);
-        testGetLinesMultiple(browser, testFile, 20000);
-        testGetLinesMultiple(browser, testFile, 30000);
-        testGetLinesMultiple(browser, testFile, 300000);
+        for (let i = 0; i < 10; i++) {
+            testGetLinesRandom(browser, testFile, true);
+        }
         // for (let i = 1; i <= testFile.lines.length; i += 5000) {
         //     testIterateLines(browser, testFile, i, 5000);
         // }
@@ -198,6 +199,17 @@ async function testGetLinesMultiple(browser: NightwatchAPI, testFile: TestFile, 
     })
         .clearValue('#autogen-linenumber')
         .setValue('#autogen-linenumber', lineNumber.toString());
+    _testGetLines(browser, testFile, decode);
+}
+
+async function testGetLinesRandom(browser: NightwatchAPI, testFile: TestFile, decode: boolean = true) {
+
+    browser.click('#getLines', function () {
+        currentMethod = 'getLines';
+    })
+        .clearValue('#random-linenumber')
+        .setValue('#random-linenumber', '1000')
+        .click('#generate-random');
     _testGetLines(browser, testFile, decode);
 }
 
