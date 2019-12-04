@@ -4,7 +4,6 @@ import * as path from "path";
 import * as chai from "chai";
 import { TextDecoder } from "util";
 import { LinesRange, LinesRanges } from "../txt-reader-common";
-import { start } from "repl";
 
 class TestFile {
     filePath: string;

@@ -611,6 +611,9 @@ class Iterator {
     }
 
     public hitLine(lineData: Uint8Array): void {
+        if (this.lastViewEndsWithCR && lineData[lineData.length - 1] === 13) {
+            lineData = lineData.slice(0, lineData.length - 1);
+        }
         let progress = 0;
         let match = false;
         let iterateComplete = false;
@@ -790,8 +793,12 @@ class TxtReaderWorker {
                     } else {
                         // rare scenario: view length is 1 and the content is CR, CR is not only the first byte but also the last byte
                         // do MERGEALL first since not sure the linebreak is CR or CRLF
-                        endsWithCR = true;
-                        mergeAll = true;
+                        if (iterator.fullIterate) {
+                            endsWithCR = true;
+                            mergeAll = true;
+                        } else {
+                            view = new Uint8Array(0);
+                        }
                     }
                 } else {
                     // no CR in the view or LF is hit before CR
@@ -988,7 +995,7 @@ class TxtReaderWorker {
         }
         if (done) {
             respondMessage(createProgressResponseMessage(100));
-            if (this.iterator.lineView.byteLength) {
+            if (this.iterator.lineView.byteLength || this.iterator.expectLineNumber === this.iterator.currentLineNumber) {
                 this.iterator.hitLine(this.iterator.lineView);
                 this.iterator.lineView = new Uint8Array(0);
             }
@@ -1001,7 +1008,7 @@ class TxtReaderWorker {
                 let slice: Blob = this.file.slice(this.iterator.offset, this.iterator.offset + DEFAULT_CHUNK_SIZE);
                 this.fr.readAsArrayBuffer(slice);
             } else {
-                if (this.iterator.lineView.byteLength) {
+                if (this.iterator.lineView.byteLength || this.iterator.expectLineNumber === this.iterator.currentLineNumber) {
                     this.iterator.hitLine(this.iterator.lineView);
                     this.iterator.lineView = new Uint8Array(0);
                 }
